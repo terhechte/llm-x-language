@@ -1,0 +1,8 @@
+[MESSAGES CONTROL]
+disable=used-before-assignment,
+    missing-module-docstring,
+    missing-function-docstring,
+    no-else-return,
+    no-else-raise,
+    no-else-continue,
+    no-else-break

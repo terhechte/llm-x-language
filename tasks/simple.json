@@ -1,0 +1,7 @@
+{
+  "type": "call",
+  "payload": {
+    "input": "blah",
+    "expected_output": "BLAH"
+  }
+}

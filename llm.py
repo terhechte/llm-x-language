@@ -1,111 +1,96 @@
-import json
-import http.client
-from urllib.parse import urlparse
-import os
-from dataclasses import dataclass
+from provider.openrouter import (
+    request as request_openrouter,
+    model_info as model_info_openrouter,
+)
+from provider.lmstudio import (
+    request as request_lmstudio,
+    model_info as model_info_lmstudio,
+)
+from provider.together_ai import (
+    request as request_together_ai,
+    model_info as model_info_together_ai,
+)
+from provider.inception import (
+    request as request_inception,
+    model_info as model_info_inception,
+)
+
+from provider.types import ModelInfo
 
 
-def request_openrouter(query: str, model: str, language: str):
-    conn, headers, path = _get_conn("https://openrouter.ai/api/v1/chat/completions")
-
-    # hack to enforce deepseek api for deepseek models
-    # as the others are unbelievable slow
-    provider = None
-    if model in ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]:
-        provider = {"order": ["DeepSeek", "DeepInfra"]}
-
-    # Prepare the data to be sent in JSON format
-    payload = json.dumps(
-        {
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": f"You are an expert {language} programmer with years of experience in coding and bug fixing. You usually detect inaccuracies in code and fix them on first sight.",
-                },
-                {"role": "user", "content": query},
-            ],
-            "provider": provider,
-        }
-    )
-
-    fail_counter = 0
-    while True:
-        if fail_counter >= 3:
-            raise TimeoutError("Request timed out")
-        try:
-            conn.request("POST", path, body=payload, headers=headers)
-
-            response = conn.getresponse()
-
-            if response.status == 200:
-                result = response.read().decode()
-                r = json.loads(result)
-                try:
-                    content = r["choices"][0]["message"]["content"]
-                    usage = r["usage"]
-                    prompt_tokens = usage["prompt_tokens"]
-                    completion_tokens = usage["completion_tokens"]
-                    return content, prompt_tokens, completion_tokens
-                except (KeyError, IndexError):
-                    print(r)
-                    fail_counter += 1
-                    continue
-            else:
-                print(f"Error: Received status code {response.status}")
-                fail_counter += 1
-                continue
-        except TimeoutError:
-            print("Error: TimeoutError")
-            fail_counter += 1
-            continue
-        except (http.client.HTTPException, ConnectionError, json.JSONDecodeError) as e:
-            print(f"Error: {e}")
-            fail_counter += 1
-            continue
+def is_lmstudio_model(model: str) -> bool:
+    return model.startswith("lmstudio/")
 
 
-@dataclass
-class ModelInfo:
-    name: str
-    prompt_pricing: str
-    completion_pricing: str
+def replace_lmstudio_model(model: str) -> str:
+    return model.replace("lmstudio/", "")
+
+
+def is_openrouter_model(model: str) -> bool:
+    return model.startswith("openrouter/")
+
+
+def replace_openrouter_model(model: str) -> str:
+    return model.replace("openrouter/", "")
+
+
+def is_together_ai_model(model: str) -> bool:
+    return model.startswith("togetherai/")
+
+
+def replace_together_ai_model(model: str) -> str:
+    return model.replace("togetherai/", "")
+
+
+def is_inception_model(model: str) -> bool:
+    return model.startswith("inception/")
+
+
+def replace_inception_model(model: str) -> str:
+    return model.replace("inception/", "")
+
+
+def request(query: str, model: str, language: str) -> tuple[str, int, int]:
+    if is_lmstudio_model(model):
+        return request_lmstudio(query, replace_lmstudio_model(model), language)
+    elif is_openrouter_model(model):
+        return request_openrouter(query, replace_openrouter_model(model), language)
+    elif is_together_ai_model(model):
+        return request_together_ai(query, replace_together_ai_model(model), language)
+    elif is_inception_model(model):
+        return request_inception(query, replace_inception_model(model), language)
+    else:
+        raise ValueError(f"Unknown model: {model}")
 
 
 def model_info(models: list[str]) -> dict[str, ModelInfo]:
-    conn, headers, path = _get_conn("https://openrouter.ai/api/v1/models")
-    conn.request("GET", path, headers=headers)
-
-    response = conn.getresponse()
-    result = response.read().decode()
-    r = json.loads(result)
-    results = {}
-    for entry in r["data"]:
-        if entry["id"] not in models:
-            continue
-        pricing = entry["pricing"]
-        prompt_pricing = pricing["prompt"]
-        completion_pricing = pricing["completion"]
-        results[entry["id"]] = ModelInfo(
-            name=entry["id"],
-            prompt_pricing=prompt_pricing,
-            completion_pricing=completion_pricing,
-        )
-    return results
-
-
-def _get_conn(url: str):
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        raise ValueError("OPENROUTER_API_KEY environment variable must be set")
-    # Parse the URL to extract host and path
-    parsed_url = urlparse(url)
-    conn = http.client.HTTPSConnection(
-        parsed_url.netloc, timeout=1400
-    )  # super long timeout for reasoning models
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
+    openrouter_models = [
+        (m, replace_openrouter_model(m)) for m in models if is_openrouter_model(m)
+    ]
+    lmstudio_models = [
+        (m, replace_lmstudio_model(m)) for m in models if is_lmstudio_model(m)
+    ]
+    together_ai_models = [
+        (m, replace_together_ai_model(m)) for m in models if is_together_ai_model(m)
+    ]
+    inception_models = [
+        (m, replace_inception_model(m)) for m in models if is_inception_model(m)
+    ]
+    return {
+        **model_info_openrouter(openrouter_models),
+        **model_info_lmstudio(lmstudio_models),
+        **model_info_together_ai(together_ai_models),
+        **model_info_inception(inception_models),
     }
-    return conn, headers, parsed_url.path
+
+
+if __name__ == "__main__":
+    print(
+        model_info(
+            [
+                "togetherai/mistralai/Mistral-7B-Instruct-v0.3",
+                "openrouter/openai/gpt-4o-2024-11-20",
+                "inception/mercury-coder-small",
+            ]
+        )
+    )

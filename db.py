@@ -272,6 +272,15 @@ class ResultDB:
         table = "\n".join([header, separator] + rows)
         return table
 
+    def list_models(self) -> list[str]:
+        model_stats = set()
+        for result in self.results:
+            model_stats.add(result.model)
+        return list(model_stats)
+
+    def results_for_model(self, m: str) -> list[TestResult]:
+        return [r for r in self.results if r.model == m]
+
     def export_aggregated(self) -> list[dict]:
         """Export aggregated statistics for each model as a list of JSON objects."""
 
@@ -353,3 +362,39 @@ class ResultDB:
         return aggregated_stats
 
 
+def run():
+    """into_file = "results/summary_merged3.json"
+    to_merge = [
+        f"results/{f}"
+        for f in [
+            "merged2.json",
+            "run_2025_04_10_16_46.json",
+            "run_2025_04_11_07_30.json",
+            "run_2025_04_15_18_31.json",
+            "run_2025_04_02_09_08.json",
+            "run_2025_04_01_10_14.json",
+            "run_2025_03_31_21_04.json",
+            "run_2025_03_29_20_16.json",
+            "run_2025_03_29_17_17.json",
+            "run_2025_02_25_08_56.json",
+        ]
+    ]
+    ResultDB.merge_files(to_merge, into_file)"""
+    db = ResultDB("results/summary_merged3.json")
+    models = db.list_models()
+    models.sort()
+    for model in models:
+        success = 0
+        fail = 0
+        results = db.results_for_model(model)
+        for r in results:
+            if r.success:
+                success += 1
+            else:
+                fail += 1
+        sx = float(success) / (success + fail)
+        print(f"{model}: {sx:.2%}")
+
+
+if __name__ == "__main__":
+    run()

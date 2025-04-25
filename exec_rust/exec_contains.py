@@ -1,5 +1,5 @@
 from task import TaskContains
-from llm import request_openrouter
+from llm import request
 from utils import TaskResult, check_contains_matches
 import json
 import requests
@@ -12,9 +12,7 @@ def exec_contains(task: TaskContains, model: str, run: int) -> TaskResult:
     and response contains the LLM response (or None if query failed).
     """
     try:
-        response, prompt_tokens, completion_tokens = request_openrouter(
-            task.prompt, model, "Rust"
-        )
+        response, prompt_tokens, completion_tokens = request(task.prompt, model, "Rust")
     except (requests.RequestException, ValueError) as e:
         return TaskResult.error(run, [str(e)])
     if not response:

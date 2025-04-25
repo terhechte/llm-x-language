@@ -6,7 +6,7 @@ import re
 import logging
 import subprocess
 import json
-from llm import request_openrouter
+from llm import request
 from utils import find_code_blocks_with_language, Result
 
 TEMPLATE = "rust_container"
@@ -26,9 +26,7 @@ def prepare_codebase(rust_code: str) -> str:
 
 
 def query_code(prompt: str, model: str) -> Tuple[str, str, int, int] | None:
-    response, prompt_tokens, completion_tokens = request_openrouter(
-        prompt, model, "Rust"
-    )
+    response, prompt_tokens, completion_tokens = request(prompt, model, "Rust")
     logging.debug(response)
     logging.debug("--------------------------------")
     if not response:

@@ -1,5 +1,5 @@
 from task import TaskContains
-from llm import request_openrouter
+from llm import request
 from utils import TaskResult, check_contains_matches
 import json
 import requests
@@ -11,7 +11,7 @@ def exec_contains(task: TaskContains, model: str, run: int) -> TaskResult:
     Returns a TaskResult indicating if the contains check passed.
     """
     try:
-        response, prompt_tokens, completion_tokens = request_openrouter(
+        response, prompt_tokens, completion_tokens = request(
             task.prompt, model, "Python"
         )
     except (requests.RequestException, ValueError) as e:

@@ -4,7 +4,7 @@ from subprocess import Popen
 import os
 import logging
 import subprocess
-from llm import request_openrouter
+from llm import request
 from utils import find_code_blocks_with_language, Result
 
 TEMPLATE = "swift_container"
@@ -25,9 +25,7 @@ def query_code(
     prompt: str, model: str, matches_func: bool = False
 ) -> Tuple[str, str, int, int] | None:
     """Query the model for Swift code and extract it from the response"""
-    response, prompt_tokens, completion_tokens = request_openrouter(
-        prompt, model, "Swift"
-    )
+    response, prompt_tokens, completion_tokens = request(prompt, model, "Swift")
     logging.debug(response)
     if not response:
         return None

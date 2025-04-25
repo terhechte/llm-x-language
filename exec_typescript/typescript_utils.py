@@ -4,7 +4,7 @@ from subprocess import Popen
 import os
 import logging
 import subprocess
-from llm import request_openrouter
+from llm import request
 from utils import find_code_blocks_with_language, Result
 
 TEMPLATE = "typescript_container"
@@ -21,9 +21,7 @@ def prepare_codebase(typescript_code: str) -> str:
 
 def query_code(prompt: str, model: str) -> Tuple[str, str, int, int] | None:
     """Query the LLM for TypeScript code."""
-    response, prompt_tokens, completion_tokens = request_openrouter(
-        prompt, model, "TypeScript"
-    )
+    response, prompt_tokens, completion_tokens = request(prompt, model, "TypeScript")
     logging.debug(response)
     logging.debug("--------------------------------")
     if not response:

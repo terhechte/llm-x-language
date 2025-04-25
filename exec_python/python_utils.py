@@ -3,7 +3,7 @@ import subprocess
 import logging
 import json
 from typing import Tuple, Optional
-from llm import request_openrouter
+from llm import request
 from utils import find_code_blocks_with_language, Result
 
 TEMPLATE = "python_container"
@@ -26,9 +26,7 @@ def query_code(prompt: str, model: str) -> Optional[Tuple[str, str, int, int]]:
     Queries the LLM for Python code based on the prompt.
     Returns a tuple of (code, response) or None if the query fails.
     """
-    response, prompt_tokens, completion_tokens = request_openrouter(
-        prompt, model, "Python"
-    )
+    response, prompt_tokens, completion_tokens = request(prompt, model, "Python")
     logging.debug(response)
     logging.debug("--------------------------------")
     if not response:

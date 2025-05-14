@@ -1,18 +1,16 @@
-import re
 from task import TaskContains
 from utils import TaskResult, check_contains_matches
 import requests
 from llm import request
 import json
 
+
 def exec_contains(task: TaskContains, model: str, run: int) -> TaskResult:
     """
     Check if PHP code contains required elements
     """
     try:
-        response, prompt_tokens, completion_tokens = request(
-            task.prompt, model, "PHP"
-        )
+        response, prompt_tokens, completion_tokens = request(task.prompt, model, "PHP")
     except (requests.RequestException, ValueError) as e:
         return TaskResult.error(run, [str(e)])
     if not response:
@@ -26,7 +24,7 @@ def exec_contains(task: TaskContains, model: str, run: int) -> TaskResult:
             expected_output="",
             tokens=(prompt_tokens, completion_tokens),
         )
-    
+
     valid_position_found = check_contains_matches(response, task.matches, task.mode)
 
     return TaskResult(

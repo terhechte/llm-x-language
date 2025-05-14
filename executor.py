@@ -5,6 +5,7 @@ import exec_rust
 import exec_swift
 import exec_typescript
 import exec_python
+import exec_php
 
 
 class Executor:
@@ -37,6 +38,8 @@ class Executor:
             return exec_typescript.exec_call(task, model, run)
         elif self.language == Language.PYTHON:
             return exec_python.exec_call(task, model, run)
+        elif self.language == Language.PHP:
+            return exec_php.exec_call(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -49,6 +52,8 @@ class Executor:
             return exec_typescript.exec_contains(task, model, run)
         elif self.language == Language.PYTHON:
             return exec_python.exec_contains(task, model, run)
+        elif self.language == Language.PHP:
+            return exec_php.exec_contains(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -61,6 +66,8 @@ class Executor:
             return exec_typescript.exec_run(task, model, run)
         elif self.language == Language.PYTHON:
             return exec_python.exec_run(task, model, run)
+        elif self.language == Language.PHP:
+            return exec_php.exec_run(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -73,5 +80,7 @@ class Executor:
             return exec_typescript.exec_check(task, model, run)
         elif self.language == Language.PYTHON:
             return exec_python.exec_check(task, model, run)
+        elif self.language == Language.PHP:
+            return exec_php.exec_check(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")

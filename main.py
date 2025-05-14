@@ -95,19 +95,22 @@ def main():
 
     db = ResultDB(filename=filename)
     setup_logging()
-    multi_runs = True
-    languages = [Language.SWIFT, Language.RUST, Language.TYPESCRIPT, Language.PYTHON]
+    multi_runs = False
+    # languages = [Language.SWIFT, Language.RUST, Language.TYPESCRIPT, Language.PYTHON, Language.PHP]
+    languages = [Language.PHP]
     limit = None  # "types1.json"
-    skip_lang_specific = False  # should the lang specific tasks be skipped
+    skip_lang_specific = True  # should the lang specific tasks be skipped
     models = [
         # "lmstudio/deepcogito_cogito-v1-preview-qwen-32b",
+        # "openrouter/openai/gpt-4.1-mini",
         "openrouter/openai/gpt-4.1",
-        "openrouter/openai/gpt-4.1-mini",
-        "openrouter/openai/gpt-4.1-nano",
+        # "openrouter/openai/gpt-4.1-nano",
         "openrouter/google/gemini-2.5-pro-preview-03-25",
-        "openrouter/all-hands/openhands-lm-32b-v0.1",
-        "openrouter/mistral/ministral-8b",
-        "inception/mercury-coder-small",
+        "openrouter/openai/o4-mini",
+        "openrouter/google/gemini-2.0-flash-001",
+        # "openrouter/all-hands/openhands-lm-32b-v0.1",
+        # "openrouter/mistral/ministral-8b",
+        # "inception/mercury-coder-small",
         # "togetherai/deepcogito/cogito-v1-preview-llama-70B",
         # "togetherai/deepcogito/deepcogito/cogito-v1-preview-qwen-32B",
         # "togetherai/deepcogito/cogito-v1-preview-qwen-14B",
@@ -138,7 +141,7 @@ def main():
         # "openrouter/thedrummer/anubis-pro-105b-v1",
         # "openrouter/microsoft/phi-4-multimodal-instruct",
         # "openrouter/qwen/qwq-32b",
-        # "openrouter/openai/o3-mini",
+        "openrouter/openai/o3-mini",
         # "openrouter/qwen/qwen-turbo",
         # "openrouter/qwen/qwen-plus",
         # "openrouter/qwen/qwen-max",
@@ -154,8 +157,10 @@ def main():
         # "openrouter/openai/gpt-4o-2024-11-20",
         # "openrouter/mistralai/mistral-large-2411",
         # "openrouter/anthropic/claude-3.5-haiku-20241022:beta",
-        # "openrouter/anthropic/claude-3.5-sonnet:beta",
+        "openrouter/anthropic/claude-3.5-sonnet-20240620:beta",
+        "openrouter/anthropic/claude-3.7-sonnet",
         # "openrouter/openai/gpt-4o-mini",
+        "openrouter/openai/gpt-4o",
         # "openrouter/mistralai/mistral-small-24b-instruct-2501",
     ]
     model_infos = model_info(models)

@@ -7,9 +7,9 @@ import os
 from utils import JSONValue, ContainsMatch
 from enum import Enum
 
-TASKS_DIR = "tasks"
+TASKS_DIR = "../best-lang/tasks"
 
-TaskPayload = Union[str | JSONValue]
+TaskPayload = Union[str, JSONValue]
 
 
 @dataclass
@@ -52,6 +52,7 @@ class Language(Enum):
     SWIFT = "swift"
     TYPESCRIPT = "typescript"
     PYTHON = "python"
+    PHP = "php"
 
     def string_type(self) -> str:
         if self == Language.RUST:
@@ -62,6 +63,8 @@ class Language(Enum):
             return "`string`"
         elif self == Language.PYTHON:
             return "`str`"
+        elif self == Language.PHP:
+            return "`string`"
         else:
             return "`String`"
 

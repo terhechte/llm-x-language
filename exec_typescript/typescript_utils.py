@@ -112,7 +112,7 @@ def run_typescript_project_with_output(code_path: str) -> Result:
             line for line in result.stdout.splitlines() if not line.startswith("> ")
         )
         logging.debug("Filtered output: %s", filtered_output)
-        return Result(success=True, errors=[filtered_output])
+        return Result(success=True, errors=[], output=filtered_output)
 
     except subprocess.TimeoutExpired:
         logging.error("TypeScript project execution timed out after 60 seconds")

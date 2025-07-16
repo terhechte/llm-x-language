@@ -80,7 +80,7 @@ if __name__ == "__main__":
             errors=["Failed to run python script"] + output.errors,
             response=response,
             code=python_code,
-            output=output.errors[0],
+            output=output.output if output.output is not None else "",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
         )
@@ -89,18 +89,18 @@ if __name__ == "__main__":
         return TaskResult(
             run=run,
             success=are_string_values_equal(
-                output.errors[0], task.expected_output, task.lowercase
+                output.output if output.output is not None else "", task.expected_output, task.lowercase
             ),
             errors=[],
             response=response,
             code=python_code,
-            output=output.errors[0],
+            output=output.output if output.output is not None else "",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
         )
     elif isinstance(task.expected_output, (dict, list)):
         try:
-            output_json = json.loads(output.errors[0])
+            output_json = json.loads(output.output if output.output is not None else "{}")
             return TaskResult(
                 run=run,
                 success=are_json_values_equal(output_json, task.expected_output),
@@ -120,7 +120,7 @@ if __name__ == "__main__":
                 errors=["Output string is not valid JSON"],
                 response=response,
                 code=python_code,
-                output=output.errors[0] if output.errors else "",
+                output=output.output if output.output is not None else "",
                 expected_output=json.dumps(task.expected_output),
                 tokens=(prompt_tokens, completion_tokens),
             )
@@ -131,7 +131,7 @@ if __name__ == "__main__":
             errors=["Invalid expected output type"],
             response=response,
             code=python_code,
-            output=output.errors[0] if output.errors else "",
+            output=output.output if output.output is not None else "",
             expected_output=str(task.expected_output),
             tokens=(prompt_tokens, completion_tokens),
         )

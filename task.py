@@ -53,6 +53,7 @@ class Language(Enum):
     TYPESCRIPT = "typescript"
     PYTHON = "python"
     PHP = "php"
+    LUA = "lua"
 
     def string_type(self) -> str:
         if self == Language.RUST:

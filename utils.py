@@ -18,6 +18,7 @@ class ContainsMatch:
 class Result:
     success: bool
     errors: List[str]
+    output: Optional[str] = None
 
 
 @dataclass

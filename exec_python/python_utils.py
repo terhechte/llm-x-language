@@ -97,7 +97,7 @@ def run_python_script(code_path: str) -> Result:
             return Result(success=False, errors=[result.stderr])
 
         logging.debug("Raw Output: %s", result.stdout)
-        return Result(success=True, errors=[result.stdout])
+        return Result(success=True, errors=[], output=result.stdout)
 
     except subprocess.TimeoutExpired:
         logging.error("Python script execution timed out after 60 seconds")

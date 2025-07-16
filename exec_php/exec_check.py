@@ -2,7 +2,12 @@ from task import TaskCheck
 from exec_php.php_utils import prepare_codebase, query_code, run_php_check
 from utils import TaskResult
 from utils import are_json_values_equal, are_string_values_equal, TaskResult
-from exec_php.php_utils import prepare_codebase, query_code, run_php_check, run_php_script
+from exec_php.php_utils import (
+    prepare_codebase,
+    query_code,
+    run_php_check,
+    run_php_script,
+)
 import logging
 
 

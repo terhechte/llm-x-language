@@ -82,7 +82,7 @@ def run_php_script(code_path: str) -> Result:
         if result.returncode != 0:
             return Result(success=False, errors=[result.stderr])
         
-        return Result(success=True, errors=[result.stdout])
+        return Result(success=True, errors=[], output=result.stdout)
     except subprocess.SubprocessError as e:
         logging.error("Error running PHP script: %s", e)
         return Result(success=False, errors=[str(e)])

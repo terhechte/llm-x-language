@@ -74,73 +74,79 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
             tokens=(prompt_tokens, completion_tokens),
         )
     
-    if not is_ready:
-        # Server didn't start in time
-        process_manager.terminate()
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Server failed to start within timeout period"],
-            response=response,
-            code=rust_code,
-            output="",
-            expected_output=task.expected_output,
-            tokens=(prompt_tokens, completion_tokens),
-        )
-
-    # Make HTTP request to the specified URL
     try:
-        http_response = requests.get(task.request, timeout=300)
-        http_response.raise_for_status()
-    except requests.RequestException as e:
-        logging.error("Error during HTTP request: %s", e)
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Failed to make HTTP request"],
-            response=response,
-            code=rust_code,
-            output="",
-            expected_output=task.expected_output,
-            tokens=(prompt_tokens, completion_tokens),
-        )
+        if not is_ready:
+            # Server didn't start in time
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Server failed to start within timeout period"],
+                response=response,
+                code=rust_code,
+                output="",
+                expected_output=task.expected_output,
+                tokens=(prompt_tokens, completion_tokens),
+            )
 
-    thread.join()
-    process_manager.terminate()
+        # Make HTTP request to the specified URL
+        try:
+            http_response = requests.get(task.request, timeout=300)
+            http_response.raise_for_status()
+        except requests.RequestException as e:
+            logging.error("Error during HTTP request: %s", e)
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Failed to make HTTP request"],
+                response=response,
+                code=rust_code,
+                output="",
+                expected_output=task.expected_output,
+                tokens=(prompt_tokens, completion_tokens),
+            )
 
-    # Compare the JSON response to the expected output
-    if isinstance(task.expected_output, str):
-        response_text = http_response.text
-        return TaskResult(
-            run=run,
-            success=response_text.strip() == task.expected_output.strip(),
-            errors=[],
-            response=response,
-            code=rust_code,
-            output=response_text,
-            expected_output=task.expected_output,
-            tokens=(prompt_tokens, completion_tokens),
-        )
-    elif isinstance(task.expected_output, dict):
-        response_json = http_response.json()
-        return TaskResult(
-            run=run,
-            success=are_json_values_equal(response_json, task.expected_output),
-            errors=[],
-            response=response,
-            code=rust_code,
-            output=json.dumps(response_json),
-            expected_output=task.expected_output,
-            tokens=(prompt_tokens, completion_tokens),
-        )
-    else:
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Invalid expected output type"],
-            response=response,
-            code=rust_code,
-            output="",
-            expected_output=str(task.expected_output),
-            tokens=(prompt_tokens, completion_tokens),
-        )
+        # Wait for thread to finish before terminating
+        thread.join(timeout=5)
+
+        # Compare the JSON response to the expected output
+        if isinstance(task.expected_output, str):
+            response_text = http_response.text
+            return TaskResult(
+                run=run,
+                success=response_text.strip() == task.expected_output.strip(),
+                errors=[],
+                response=response,
+                code=rust_code,
+                output=response_text,
+                expected_output=task.expected_output,
+                tokens=(prompt_tokens, completion_tokens),
+            )
+        elif isinstance(task.expected_output, dict):
+            response_json = http_response.json()
+            return TaskResult(
+                run=run,
+                success=are_json_values_equal(response_json, task.expected_output),
+                errors=[],
+                response=response,
+                code=rust_code,
+                output=json.dumps(response_json),
+                expected_output=task.expected_output,
+                tokens=(prompt_tokens, completion_tokens),
+            )
+        else:
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Invalid expected output type"],
+                response=response,
+                code=rust_code,
+                output="",
+                expected_output=str(task.expected_output),
+                tokens=(prompt_tokens, completion_tokens),
+            )
+    finally:
+        # Ensure subprocess is terminated
+        process_manager.terminate()
+        # Also wait for thread cleanup
+        if thread.is_alive():
+            thread.join(timeout=1)

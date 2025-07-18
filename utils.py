@@ -2,6 +2,9 @@ import re
 from typing import Any, Union, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import json
+import threading
+import subprocess
+import logging
 
 # A generic JSON value can be:
 JSONValue = Union[Dict[str, Any], List[Any]]
@@ -187,3 +190,107 @@ def check_contains_matches(text: str, matches: list[ContainsMatch], mode: str) -
         return all(results)
     else:  # mode == "or"
         return any(results)
+
+
+def wait_for_server_ready(url: str, max_attempts: int = 30, delay_seconds: float = 0.5) -> bool:
+    """
+    Wait for a server to be ready by polling an endpoint.
+    
+    Args:
+        url: The URL to check for server readiness
+        max_attempts: Maximum number of attempts before giving up (default: 30)
+        delay_seconds: Delay between attempts in seconds (default: 0.5)
+        
+    Returns:
+        True if server is ready, False if timeout reached
+    """
+    import time
+    import requests
+    import logging
+    
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, timeout=2)
+            if response.status_code < 500:  # Server is responding (even if 404, etc)
+                logging.debug(f"Server ready after {attempt + 1} attempts")
+                return True
+        except requests.exceptions.ConnectionError:
+            # Server not ready yet, continue
+            pass
+        except requests.exceptions.Timeout:
+            # Timeout might mean server is overloaded but running
+            pass
+        except Exception as e:
+            logging.debug(f"Unexpected error checking server readiness: {e}")
+            
+        if attempt < max_attempts - 1:
+            time.sleep(delay_seconds)
+    
+    logging.warning(f"Server at {url} not ready after {max_attempts} attempts")
+    return False
+
+
+class ProcessManager:
+    """
+    Thread-safe process management with proper synchronization.
+    Prevents race conditions when starting processes in threads.
+    """
+    
+    def __init__(self):
+        self.process = None
+        self.process_lock = threading.Lock()
+        self.process_started = threading.Event()
+        self.start_error = None
+        
+    def start_process(self, args: list, **kwargs):
+        """
+        Start a process with proper thread synchronization.
+        
+        Args:
+            args: Command and arguments to run
+            **kwargs: Additional arguments to pass to subprocess.Popen
+        """
+        try:
+            with self.process_lock:
+                self.process = subprocess.Popen(args, **kwargs)
+            self.process_started.set()
+        except subprocess.SubprocessError as e:
+            self.start_error = e
+            self.process_started.set()
+            logging.error(f"Error starting process: {e}")
+            
+    def wait_for_start(self, timeout: float = 5.0) -> bool:
+        """
+        Wait for the process to start or fail.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            
+        Returns:
+            True if process started successfully, False otherwise
+        """
+        if self.process_started.wait(timeout):
+            return self.process is not None
+        return False
+        
+    def terminate(self, timeout: float = 5.0):
+        """
+        Safely terminate the process with proper cleanup.
+        
+        Args:
+            timeout: Time to wait for graceful shutdown before force killing
+        """
+        with self.process_lock:
+            if self.process:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait()
+                self.process = None
+                
+    def get_process(self):
+        """Get the process object safely."""
+        with self.process_lock:
+            return self.process

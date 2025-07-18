@@ -14,9 +14,13 @@ TEMPLATE_DEST = os.path.join(os.path.dirname(__file__), "../dojo", TEMPLATE)
 
 def prepare_codebase(typescript_code: str) -> str:
     """Write TypeScript code to index.ts and return the path."""
-    with open(os.path.join(TEMPLATE_DEST, "src/index.ts"), "w", encoding="utf-8") as f:
-        f.write(typescript_code)
-    return TEMPLATE_DEST
+    try:
+        with open(os.path.join(TEMPLATE_DEST, "src/index.ts"), "w", encoding="utf-8") as f:
+            f.write(typescript_code)
+        return TEMPLATE_DEST
+    except IOError as e:
+        logging.error(f"Failed to write TypeScript code to src/index.ts: {e}")
+        raise
 
 
 def query_code(prompt: str, model: str) -> Tuple[str, str, int, int] | None:

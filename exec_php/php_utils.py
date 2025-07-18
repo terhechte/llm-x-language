@@ -35,10 +35,14 @@ def prepare_codebase(php_code: str) -> str:
     """
     Prepares the PHP codebase by creating necessary files
     """
-     # Write the Python code to main.py
-    with open(os.path.join(TEMPLATE_DEST, "main.php"), "w", encoding="utf-8") as f:
-        f.write(php_code)
-    return TEMPLATE_DEST
+    # Write the PHP code to main.php
+    try:
+        with open(os.path.join(TEMPLATE_DEST, "main.php"), "w", encoding="utf-8") as f:
+            f.write(php_code)
+        return TEMPLATE_DEST
+    except IOError as e:
+        logging.error(f"Failed to write PHP code to main.php: {e}")
+        raise
 
 
 def run_php_check(code_path: str) -> Result:

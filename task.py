@@ -127,8 +127,12 @@ def parse_task(task_json: Dict[str, Any], prompt: str) -> Optional[TaskCall]:
         if not os.path.exists(from_path):
             print(f"Error: Input file {from_path} does not exist")
             return None
-        shutil.copy(from_path, to_path)
-        input_contents = to_path
+        try:
+            shutil.copy(from_path, to_path)
+            input_contents = to_path
+        except IOError as e:
+            print(f"Error: Could not copy file from {from_path} to {to_path}: {e}")
+            return None
     else:
         print("Error: No valid input field found in payload")
         return None
@@ -299,9 +303,14 @@ def parse_task_from_file(
 
     # Get the corresponding .md file path and read the prompt
     md_filepath = json_filepath.rsplit(".json", 1)[0] + ".md"
-    prompt = open(md_filepath, "r", encoding="utf-8").read()
-    if prompt is None:
-        print("Error: Could not read prompt file %s", md_filepath)
+    try:
+        with open(md_filepath, "r", encoding="utf-8") as f:
+            prompt = f.read()
+    except FileNotFoundError:
+        print(f"Error: Prompt file not found: {md_filepath}")
+        return None
+    except IOError as e:
+        print(f"Error: Could not read prompt file {md_filepath}: {e}")
         return None
     prompt = process_prompt(prompt, language, task_json["type"])
 
@@ -369,23 +378,29 @@ def process_prompt(prompt: str, language: Language, task_type: str) -> str:
     # Replace {{lang}} with actual language
     processed_prompt = _process_prompt(prompt, string_type, language)
     # Append base.md contents
-    base_content = open(
-        os.path.join(TASKS_DIR, "base.md"), "r", encoding="utf-8"
-    ).read()
-    if base_content is not None:
+    try:
+        with open(os.path.join(TASKS_DIR, "base.md"), "r", encoding="utf-8") as f:
+            base_content = f.read()
         processed_prompt += "\n\n" + _process_prompt(
             base_content, string_type, language
         )
+    except FileNotFoundError:
+        print("Warning: base.md not found, skipping base content")
+    except IOError as e:
+        print(f"Warning: Could not read base.md: {e}")
 
     # Handle language-specific additions
     # Add base language content
-    lang_content = open(
-        os.path.join(TASKS_DIR, f"{language.value}/_add.md"), "r", encoding="utf-8"
-    ).read()
-    if lang_content is not None:
+    try:
+        with open(os.path.join(TASKS_DIR, f"{language.value}/_add.md"), "r", encoding="utf-8") as f:
+            lang_content = f.read()
         processed_prompt += "\n\n" + _process_prompt(
             lang_content, string_type, language
         )
+    except FileNotFoundError:
+        print(f"Warning: {language.value}/_add.md not found, skipping language-specific content")
+    except IOError as e:
+        print(f"Warning: Could not read {language.value}/_add.md: {e}")
 
     # Add task-specific content
     task_files = {
@@ -395,13 +410,16 @@ def process_prompt(prompt: str, language: Language, task_type: str) -> str:
     }
 
     if task_type in task_files:
-        task_content = open(
-            os.path.join(TASKS_DIR, task_files[task_type]), "r", encoding="utf-8"
-        ).read()
-        if task_content is not None:
+        try:
+            with open(os.path.join(TASKS_DIR, task_files[task_type]), "r", encoding="utf-8") as f:
+                task_content = f.read()
             processed_prompt += "\n\n" + _process_prompt(
                 task_content, string_type, language
             )
+        except FileNotFoundError:
+            print(f"Warning: {task_files[task_type]} not found, skipping task-specific content")
+        except IOError as e:
+            print(f"Warning: Could not read {task_files[task_type]}: {e}")
 
     return processed_prompt
 

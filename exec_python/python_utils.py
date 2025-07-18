@@ -16,9 +16,13 @@ def prepare_codebase(python_code: str) -> str:
     Prepares the Python codebase by writing the code to main.py in the template directory.
     """
     # Write the Python code to main.py
-    with open(os.path.join(TEMPLATE_DEST, "main.py"), "w", encoding="utf-8") as f:
-        f.write(python_code)
-    return TEMPLATE_DEST
+    try:
+        with open(os.path.join(TEMPLATE_DEST, "main.py"), "w", encoding="utf-8") as f:
+            f.write(python_code)
+        return TEMPLATE_DEST
+    except IOError as e:
+        logging.error(f"Failed to write Python code to main.py: {e}")
+        raise
 
 
 def query_code(prompt: str, model: str) -> Optional[Tuple[str, str, int, int]]:

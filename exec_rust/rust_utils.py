@@ -20,9 +20,13 @@ def prepare_codebase(rust_code: str) -> str:
     # shutil.copytree(TEMPLATE_PATH, TEMPLATE_DEST)
 
     # Write the Rust code to main.rs
-    with open(os.path.join(TEMPLATE_DEST, "src/main.rs"), "w", encoding="utf-8") as f:
-        f.write(rust_code)
-    return TEMPLATE_DEST
+    try:
+        with open(os.path.join(TEMPLATE_DEST, "src/main.rs"), "w", encoding="utf-8") as f:
+            f.write(rust_code)
+        return TEMPLATE_DEST
+    except IOError as e:
+        logging.error(f"Failed to write Rust code to src/main.rs: {e}")
+        raise
 
 
 def query_code(prompt: str, model: str) -> Tuple[str, str, int, int] | None:

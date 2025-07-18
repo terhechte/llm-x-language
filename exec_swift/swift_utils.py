@@ -14,11 +14,15 @@ TEMPLATE_DEST = os.path.join(os.path.dirname(__file__), "../dojo", TEMPLATE)
 
 def prepare_codebase(swift_code: str) -> str:
     """Prepare the Swift codebase by writing the code to main.swift"""
-    with open(
-        os.path.join(TEMPLATE_DEST, "Sources/main.swift"), "w", encoding="utf-8"
-    ) as f:
-        f.write(swift_code)
-    return TEMPLATE_DEST
+    try:
+        with open(
+            os.path.join(TEMPLATE_DEST, "Sources/main.swift"), "w", encoding="utf-8"
+        ) as f:
+            f.write(swift_code)
+        return TEMPLATE_DEST
+    except IOError as e:
+        logging.error(f"Failed to write Swift code to Sources/main.swift: {e}")
+        raise
 
 
 def query_code(

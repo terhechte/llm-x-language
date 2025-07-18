@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass, asdict
 from typing import List
 from pathlib import Path
@@ -67,16 +68,30 @@ class ResultDB:
 
     def save_db(self) -> None:
         """Save current results to the JSON file"""
-        with open(self.db_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "costs": self.costs,
-                    "durations": self.durations,
-                    "results": [asdict(result) for result in self.results],
-                },
-                f,
-                indent=2,
-            )
+        try:
+            # Create a temporary file first to avoid data loss on write failure
+            temp_path = self.db_path + ".tmp"
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "costs": self.costs,
+                        "durations": self.durations,
+                        "results": [asdict(result) for result in self.results],
+                    },
+                    f,
+                    indent=2,
+                )
+            # Move the temporary file to the actual path
+            os.replace(temp_path, self.db_path)
+        except IOError as e:
+            print(f"Error: Failed to save database to {self.db_path}: {e}")
+            # Clean up temp file if it exists
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+            raise
 
     def add_result(
         self,

@@ -4,7 +4,7 @@ import json
 import logging
 from task import TaskRun
 import requests
-from utils import are_json_values_equal, TaskResult
+from utils import are_json_values_equal, TaskResult, wait_for_server_ready, ProcessManager
 from exec_lua.lua_utils import query_code, prepare_codebase, run_lua_check
 
 
@@ -57,12 +57,11 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
             tokens=(prompt_tokens, completion_tokens),
         )
 
-    process = None
+    process_manager = ProcessManager()
 
     # Run the Lua script in a separate thread
     def run_target():
-        nonlocal process
-        process = subprocess.Popen(
+        process_manager.start_process(
             ["lua", code_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -70,7 +69,34 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
 
     thread = threading.Thread(target=run_target)
     thread.start()
-    thread.join(0.2)  # Give it a moment to start
+    
+    # Wait for process to start
+    if not process_manager.wait_for_start():
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Failed to start Lua process"],
+            response=response,
+            code=lua_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
+    
+    # Wait for server to be ready
+    if not wait_for_server_ready(task.request):
+        # Server didn't start in time
+        process_manager.terminate()
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Server failed to start within timeout period"],
+            response=response,
+            code=lua_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
 
     # Make HTTP request to the specified URL
     try:
@@ -90,13 +116,7 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
         )
     finally:
         # Ensure subprocess is terminated
-        if process:
-            process.terminate()  # Send SIGTERM
-            try:
-                process.wait(timeout=5)  # Wait up to 5 seconds for graceful shutdown
-            except subprocess.TimeoutExpired:
-                process.kill()  # Force kill if process doesn't terminate gracefully
-                process.wait()  # Wait for the process to be killed
+        process_manager.terminate()
 
     # Compare the response to the expected output
     if isinstance(task.expected_output, str):

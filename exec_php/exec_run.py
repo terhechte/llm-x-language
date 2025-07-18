@@ -4,10 +4,9 @@ import requests
 import json
 import os
 from task import TaskRun
-from utils import TaskResult, are_json_values_equal
+from utils import TaskResult, are_json_values_equal, wait_for_server_ready, ProcessManager
 from exec_php.php_utils import prepare_codebase, query_code, run_php_check
 import logging
-from time import sleep
 
 
 def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
@@ -46,22 +45,52 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
             tokens=(prompt_tokens, completion_tokens),
         )
 
-    process = None
+    process_manager = ProcessManager()
 
     def run_script():
-        nonlocal process
-        process = subprocess.Popen(
+        process_manager.start_process(
             ["php", os.path.join(code_path, "main.php")],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        process.communicate()
+        # Get process for communicate() call
+        process = process_manager.get_process()
+        if process:
+            process.communicate()
 
     thread = threading.Thread(target=run_script)
     thread.start()
 
-    sleep(0.5)
+    # Wait for process to start
+    if not process_manager.wait_for_start():
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Failed to start PHP process"],
+            response=response,
+            code=php_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
+
+    # Wait for server to be ready
+    if not wait_for_server_ready(task.request):
+        # Server didn't start in time
+        process_manager.terminate()
+        thread.join(timeout=1)
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Server failed to start within timeout period"],
+            response=response,
+            code=php_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
+
     http_response = None
     error = None
     try:
@@ -73,11 +102,11 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
 
     # Wait for the thread to finish, but don't block forever
     thread.join(timeout=2)
-    if thread.is_alive() and process:
-        process.terminate()
+    if thread.is_alive():
+        process_manager.terminate()
         thread.join(timeout=1)
-    elif process:
-        process.terminate()
+    else:
+        process_manager.terminate()
 
     if error:
         return TaskResult(

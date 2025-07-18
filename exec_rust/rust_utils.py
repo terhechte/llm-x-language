@@ -7,7 +7,7 @@ import logging
 import subprocess
 import json
 from llm import request
-from utils import find_code_blocks_with_language, Result
+from utils import find_code_blocks_with_language, Result, wait_for_server_ready, ProcessManager
 
 TEMPLATE = "rust_container"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "../../", TEMPLATE)
@@ -80,35 +80,38 @@ def run_cargo_check(code_path: str) -> Result:
         return Result(success=False, errors=[str(e)])
 
 
-def run_rust_project(code_path: str) -> Tuple[threading.Thread, Popen[Any] | None]:
+def run_rust_project(code_path: str, url: str = None) -> Tuple[threading.Thread, ProcessManager, bool]:
     """
-    Runs the Rust project in a separate thread.
+    Runs the Rust project in a separate thread with proper synchronization.
 
     Args:
         code_path: Path to the Rust project directory
+        url: Optional URL to check for server readiness
 
     Returns:
-        Tuple containing (thread_handle, process_handle)
+        Tuple containing (thread_handle, process_manager, is_ready)
     """
-    process = None
+    process_manager = ProcessManager()
 
     def run_target():
-        nonlocal process
-        try:
-            process = Popen(
-                ["cargo", "run"],
-                cwd=code_path,
-            )
-        except subprocess.SubprocessError as e:
-            logging.error("Error running Rust project: %s", e)
+        process_manager.start_process(
+            ["cargo", "run"],
+            cwd=code_path,
+        )
 
     thread = threading.Thread(target=run_target)
     thread.start()
 
-    # Wait briefly to ensure process is created
-    thread.join(0.2)
+    # Wait for process to start
+    if not process_manager.wait_for_start():
+        return thread, process_manager, False
 
-    return thread, process
+    # Wait for server to be ready if URL provided
+    is_ready = True
+    if url:
+        is_ready = wait_for_server_ready(url)
+
+    return thread, process_manager, is_ready
 
 
 def run_rust_project_with_output(code_path: str) -> Result:

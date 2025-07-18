@@ -4,7 +4,7 @@ import json
 import logging
 from task import TaskRun
 import requests
-from utils import are_json_values_equal, TaskResult
+from utils import are_json_values_equal, TaskResult, wait_for_server_ready, ProcessManager
 from exec_python.python_utils import (
     query_code,
     prepare_codebase,
@@ -17,7 +17,7 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
     Execute a TaskRun for Python code.
     Returns a TaskResult containing the execution results and relevant code/output.
     """
-    process = None  # Store process reference at function scope
+    process_manager = ProcessManager()
     try:
         r = query_code(task.prompt, model)
     except (ValueError, RuntimeError, TimeoutError) as e:
@@ -62,20 +62,43 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
             tokens=(prompt_tokens, completion_tokens),
         )
 
-    # Run the Python script in a separate thread
+    # Run the Python script in a separate thread with proper synchronization
     def run_target():
-        nonlocal process  # Access the outer process variable
-        try:
-            process = subprocess.Popen(
-                ["poetry", "run", "python", "main.py"],
-                cwd=code_path,
-            )
-        except subprocess.SubprocessError as e:
-            logging.error("Error running Python script: %s", e)
+        process_manager.start_process(
+            ["poetry", "run", "python", "main.py"],
+            cwd=code_path,
+        )
 
     thread = threading.Thread(target=run_target)
     thread.start()
-    thread.join(0.2)  # Give it a moment to start
+    
+    # Wait for process to start
+    if not process_manager.wait_for_start():
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Failed to start Python process"],
+            response=response,
+            code=python_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
+    
+    # Wait for server to be ready
+    if not wait_for_server_ready(task.request):
+        # Server didn't start in time
+        process_manager.terminate()
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Server failed to start within timeout period"],
+            response=response,
+            code=python_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
 
     # Make HTTP request to the specified URL
     try:
@@ -95,13 +118,7 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
         )
     finally:
         # Ensure subprocess is terminated
-        if process:
-            process.terminate()  # Send SIGTERM
-            try:
-                process.wait(timeout=5)  # Wait up to 5 seconds for graceful shutdown
-            except subprocess.TimeoutExpired:
-                process.kill()  # Force kill if process doesn't terminate gracefully
-                process.wait()  # Wait for the process to be killed
+        process_manager.terminate()
 
     # Compare the response to the expected output
     if isinstance(task.expected_output, str):

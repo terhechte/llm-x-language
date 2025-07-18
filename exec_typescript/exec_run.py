@@ -1,5 +1,6 @@
 import json
 import logging
+import subprocess
 from task import TaskRun
 import requests
 from utils import are_json_values_equal, TaskResult
@@ -60,12 +61,26 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
             tokens=(prompt_tokens, completion_tokens),
         )
 
-    thread, process = run_typescript_project(code_path)
-    if not thread or not process:
+    thread, process_manager, is_ready = run_typescript_project(code_path, task.request)
+    if not thread or not process_manager:
         return TaskResult(
             run=run,
             success=False,
             errors=["Failed to run TypeScript project"],
+            response=response,
+            code=typescript_code,
+            output="",
+            expected_output=task.expected_output,
+            tokens=(prompt_tokens, completion_tokens),
+        )
+    
+    if not is_ready:
+        # Server didn't start in time
+        process_manager.terminate()
+        return TaskResult(
+            run=run,
+            success=False,
+            errors=["Server failed to start within timeout period"],
             response=response,
             code=typescript_code,
             output="",
@@ -91,7 +106,7 @@ def exec_run(task: TaskRun, model: str, run: int) -> TaskResult:
         )
 
     thread.join()
-    process.terminate()
+    process_manager.terminate()
 
     # Compare the response to the expected output
     if isinstance(task.expected_output, str):

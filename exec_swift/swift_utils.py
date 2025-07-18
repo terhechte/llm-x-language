@@ -5,7 +5,7 @@ import os
 import logging
 import subprocess
 from llm import request
-from utils import find_code_blocks_with_language, Result
+from utils import find_code_blocks_with_language, Result, wait_for_server_ready, ProcessManager
 
 TEMPLATE = "swift_container"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "../../", TEMPLATE)
@@ -75,27 +75,29 @@ def run_swift_check(code_path: str) -> Result:
         return Result(success=False, errors=[str(e)])
 
 
-def run_swift_project(code_path: str) -> Tuple[threading.Thread, Popen[Any] | None]:
-    """Run the Swift project in a separate thread"""
-    process = None
+def run_swift_project(code_path: str, url: str = None) -> Tuple[threading.Thread, ProcessManager, bool]:
+    """Run the Swift project in a separate thread with proper synchronization"""
+    process_manager = ProcessManager()
 
     def run_target():
-        nonlocal process
-        try:
-            process = Popen(
-                ["swift", "run"],
-                cwd=code_path,
-            )
-        except subprocess.SubprocessError as e:
-            logging.error("Error running Swift project: %s", e)
+        process_manager.start_process(
+            ["swift", "run"],
+            cwd=code_path,
+        )
 
     thread = threading.Thread(target=run_target)
     thread.start()
 
-    # Wait briefly to ensure process is created
-    thread.join(0.2)
+    # Wait for process to start
+    if not process_manager.wait_for_start():
+        return thread, process_manager, False
 
-    return thread, process
+    # Wait for server to be ready if URL provided
+    is_ready = True
+    if url:
+        is_ready = wait_for_server_ready(url)
+
+    return thread, process_manager, is_ready
 
 
 def run_swift_project_with_output(code_path: str) -> Result:

@@ -226,7 +226,7 @@ def parse_contains_task(
             )
             matches.append(match)
 
-        if "mode" in payload:
+        if isinstance(payload, dict) and "mode" in payload:
             mode = payload["mode"]
         if mode not in ["and", "or"]:
             print("Error: mode must be either 'and' or 'or'")

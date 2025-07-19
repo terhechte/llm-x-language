@@ -1,78 +1,128 @@
 import os
 import tempfile
 import subprocess
-from typing import Optional, Tuple
-from utils import Result
-from llm import request
+import logging
+from typing import List, Optional, Tuple
+
+from base_executor import BaseLanguageUtils
+from utils import Result, find_code_blocks_with_language
 
 
-def query_code(prompt: str, model: str) -> Optional[Tuple[str, str, int, int]]:
-    """
-    Query the model for Lua code based on the prompt.
-    Returns a tuple of (lua_code, full_response, prompt_tokens, completion_tokens).
-    """
-    try:
-        response, prompt_tokens, completion_tokens = request(prompt, model, "Lua")
+class LuaUtils(BaseLanguageUtils):
+    """Lua-specific language utilities."""
+    
+    def __init__(self):
+        # Lua doesn't use a container, so we use temp directory
+        super().__init__(
+            language="Lua",
+            template_name="",  # No container
+            main_file="main.lua"
+        )
+        self.temp_dir: Optional[str] = None
+    
+    def get_language_aliases(self) -> List[str]:
+        """Return Lua language aliases."""
+        return ["lua"]
+    
+    def prepare_codebase(self, code: str) -> str:
+        """
+        Prepare a temporary directory with the Lua code.
+        Returns the path to the temporary directory.
+        """
+        try:
+            # Create a temporary directory
+            temp_dir = tempfile.mkdtemp()
+            self.temp_dir = temp_dir
+            code_path = os.path.join(temp_dir, self.main_file)
+            
+            # Write the code to a file
+            with open(code_path, "w") as f:
+                f.write(code)
+            
+            return temp_dir
+        except Exception as e:
+            logging.error(f"Failed to write Lua code: {e}")
+            raise
+    
+    def query_code(self, prompt: str, model: str) -> Optional[Tuple[str, str, int, int]]:
+        """
+        Query the LLM for Lua code based on the prompt.
+        Special handling for Lua - returns the full response as code.
+        """
+        from llm import request
+        response, prompt_tokens, completion_tokens = request(prompt, model, self.language)
+        logging.debug(response)
+        logging.debug("--------------------------------")
         if not response:
             return None
-        return response, response, prompt_tokens, completion_tokens
-    except Exception as e:
-        raise ValueError(f"Failed to query code: {str(e)}")
+        
+        # For Lua, the original implementation returns the full response as code
+        # This might be because Lua tasks expect plain text responses
+        # Let's check for code blocks first, and fall back to full response
+        code_blocks = find_code_blocks_with_language(response)
+        lua_code = self.extract_language_code(code_blocks)
+        
+        # If no code blocks found, use the full response
+        if not lua_code:
+            lua_code = response
+        
+        logging.debug(lua_code)
+        return lua_code, response, prompt_tokens, completion_tokens
+    
+    def run_validation(self, code_path: str) -> Result:
+        """Run luac -p to check Lua code for syntax errors."""
+        try:
+            lua_file = os.path.join(code_path, self.main_file)
+            result = subprocess.run(
+                ["luac", "-p", lua_file],
+                capture_output=True,
+                text=True,
+                check=False
+            )
 
-
-def prepare_codebase(lua_code: str) -> Optional[str]:
-    """
-    Prepare a temporary directory with the Lua code.
-    Returns the path to the temporary directory.
-    """
-    try:
-        # Create a temporary directory
-        temp_dir = tempfile.mkdtemp()
-        code_path = os.path.join(temp_dir, "main.lua")
-
-        # Write the code to a file
-        with open(code_path, "w") as f:
-            f.write(lua_code)
-
-        return code_path
-    except Exception as e:
-        print(f"Error preparing codebase: {e}")
+            if result.returncode != 0:
+                return Result(success=False, errors=[result.stderr.strip()])
+            return Result(success=True, errors=[])
+        except subprocess.CalledProcessError as e:
+            return Result(success=False, errors=[str(e)])
+        except Exception as e:
+            return Result(success=False, errors=[f"Error running lua check: {str(e)}"])
+    
+    def get_run_command(self) -> List[str]:
+        """Get command to run Lua code."""
+        return ["lua", self.main_file]
+    
+    def get_build_command(self) -> Optional[List[str]]:
+        """Lua doesn't need a build step."""
         return None
+    
+    def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
+        """Extract Lua-specific runtime errors."""
+        if stderr:
+            return [stderr.strip()]
+        return ["Runtime error occurred"]
+    
+    def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
+        """
+        Prepare Lua code for TaskCall execution by wrapping it with input handling.
+        """
+        # For Lua, we need to add code to parse input and call the function
+        wrapped_code = f"""
+{code.strip()}
+
+-- Main execution
+local input = "{input_contents}"
+local result = example(input)
+print(result)
+"""
+        return self.prepare_codebase(wrapped_code)
 
 
-def run_lua_check(code_path: str) -> Result:
-    """
-    Run luac -p to check Lua code for syntax errors.
-    Returns a Result indicating success/failure and any errors.
-    """
-    try:
-        result = subprocess.run(
-            ["luac", "-p", code_path], capture_output=True, text=True, check=False
-        )
+# Create singleton instance
+lua_utils = LuaUtils()
 
-        if result.returncode != 0:
-            return Result(success=False, errors=[result.stderr.strip()])
-        return Result(success=True, errors=[])
-    except subprocess.CalledProcessError as e:
-        return Result(success=False, errors=[str(e)])
-    except Exception as e:
-        return Result(success=False, errors=[f"Error running lua check: {str(e)}"])
-
-
-def run_lua_script(code_path: str) -> Result:
-    """
-    Run a Lua script and capture its output.
-    Returns a Result containing success/failure status and output or errors.
-    """
-    try:
-        result = subprocess.run(
-            ["lua", code_path], capture_output=True, text=True, check=False
-        )
-
-        if result.returncode != 0:
-            return Result(success=False, errors=[result.stderr.strip()])
-        return Result(success=True, errors=[], output=result.stdout.strip())
-    except subprocess.CalledProcessError as e:
-        return Result(success=False, errors=[str(e)])
-    except Exception as e:
-        return Result(success=False, errors=[f"Error running lua script: {str(e)}"])
+# Export backward-compatible functions
+prepare_codebase = lua_utils.prepare_codebase
+query_code = lua_utils.query_code
+run_lua_check = lua_utils.run_validation
+run_lua_script = lua_utils.run_script

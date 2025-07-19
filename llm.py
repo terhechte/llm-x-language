@@ -52,7 +52,10 @@ def replace_inception_model(model: str) -> str:
 
 def request(query: str, model: str, language: str) -> tuple[str, int, int]:
     if is_lmstudio_model(model):
-        return request_lmstudio(query, replace_lmstudio_model(model), language)
+        result = request_lmstudio(query, replace_lmstudio_model(model), language)
+        if result is None:
+            raise ValueError("LMStudio request failed")
+        return result
     elif is_openrouter_model(model):
         return request_openrouter(query, replace_openrouter_model(model), language)
     elif is_together_ai_model(model):

@@ -54,7 +54,7 @@ class ResultDB:
                 with open(self.db_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.costs = {
-                        model: {lang: cost for lang, cost in costs.items()}
+                        model: {lang: Decimal(cost) for lang, cost in costs.items()}
                         for model, costs in data.get("costs", {}).items()
                     }
                     self.durations = data.get("durations", {})
@@ -70,11 +70,16 @@ class ResultDB:
         """Save current results to the JSON file"""
         try:
             # Create a temporary file first to avoid data loss on write failure
-            temp_path = self.db_path + ".tmp"
+            temp_path = str(self.db_path) + ".tmp"
             with open(temp_path, "w", encoding="utf-8") as f:
+                # Convert Decimal values to strings for JSON serialization
+                costs_str = {
+                    model: {lang: str(cost) for lang, cost in langs.items()}
+                    for model, langs in self.costs.items()
+                }
                 json.dump(
                     {
-                        "costs": self.costs,
+                        "costs": costs_str,
                         "durations": self.durations,
                         "results": [asdict(result) for result in self.results],
                     },
@@ -133,8 +138,8 @@ class ResultDB:
         self.save_db()
 
     def set_total_costs(self, model: str, language: str, costs: Decimal) -> None:
-        self.costs.setdefault(model, {}).setdefault(language, "0")
-        self.costs[model][language] = str(costs)
+        self.costs.setdefault(model, {}).setdefault(language, Decimal("0"))
+        self.costs[model][language] = costs
 
     def set_total_duration(self, model: str, language: str, duration: float) -> None:
         self.durations.setdefault(model, {}).setdefault(language, 0)
@@ -208,11 +213,8 @@ class ResultDB:
                 self.costs[model] = {}
             for lang, cost in costs.items():
                 # Sum the costs if they exist in both DBs
-                current_cost = Decimal(self.costs.get(model, {}).get(lang, "0"))
-                other_cost = Decimal(cost)
-                self.costs[model][lang] = str(
-                    Decimal(current_cost) + Decimal(other_cost)
-                )
+                current_cost = self.costs.get(model, {}).get(lang, Decimal("0"))
+                self.costs[model][lang] = current_cost + cost
 
         # Merge durations
         for model, durations in other_db.durations.items():

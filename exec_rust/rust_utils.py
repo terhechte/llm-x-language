@@ -1,219 +1,220 @@
-import threading
-from typing import Tuple, Any
-from subprocess import Popen
 import os
 import re
-import logging
 import subprocess
+import logging
 import json
-from llm import request
-from utils import find_code_blocks_with_language, Result, wait_for_server_ready, ProcessManager
+from typing import List, Tuple, Optional
 
-TEMPLATE = "rust_container"
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "../../", TEMPLATE)
-TEMPLATE_DEST = os.path.join(os.path.dirname(__file__), "../dojo", TEMPLATE)
+from base_executor import BaseLanguageUtils
+from utils import Result
 
 
-def prepare_codebase(rust_code: str) -> str:
-    # if os.path.exists(TEMPLATE_DEST):
-    #    shutil.rmtree(TEMPLATE_DEST)
-    # shutil.copytree(TEMPLATE_PATH, TEMPLATE_DEST)
-
-    # Write the Rust code to main.rs
-    try:
-        with open(os.path.join(TEMPLATE_DEST, "src/main.rs"), "w", encoding="utf-8") as f:
-            f.write(rust_code)
-        return TEMPLATE_DEST
-    except IOError as e:
-        logging.error(f"Failed to write Rust code to src/main.rs: {e}")
-        raise
-
-
-def query_code(prompt: str, model: str) -> Tuple[str, str, int, int] | None:
-    response, prompt_tokens, completion_tokens = request(prompt, model, "Rust")
-    logging.debug(response)
-    logging.debug("--------------------------------")
-    if not response:
-        return None
-
-    # Extract and combine code blocks
-    code_blocks = find_code_blocks_with_language(response)
-
-    # if we have > 1 code blocks and code block > 1 has a fn main
-    # then remove any fn main from code block 0
-    # otherwise we have two fn main
-    if len(code_blocks) >= 2 and code_blocks[1][1].find("fn main") != -1:
-        code_blocks[0] = (
-            code_blocks[0][0],
-            remove_rust_main_function(code_blocks[0][1]),
+class RustUtils(BaseLanguageUtils):
+    """Rust-specific language utilities."""
+    
+    def __init__(self):
+        super().__init__(
+            language="Rust",
+            template_name="rust_container",
+            main_file="src/main.rs"
         )
+    
+    def get_language_aliases(self) -> List[str]:
+        """Return Rust language aliases."""
+        return ["rust", "rs"]
+    
+    def extract_language_code(self, code_blocks: List[Tuple[str, str]]) -> str:
+        """
+        Extract Rust code blocks with special handling for duplicate main functions.
+        """
+        # If we have > 1 code blocks and code block > 1 has a fn main
+        # then remove any fn main from code block 0
+        # otherwise we have two fn main
+        if len(code_blocks) >= 2 and code_blocks[1][1].find("fn main") != -1:
+            code_blocks[0] = (
+                code_blocks[0][0],
+                self.remove_rust_main_function(code_blocks[0][1]),
+            )
+        
+        # Extract matching code blocks
+        aliases = self.get_language_aliases()
+        matching_code = []
+        for lang, code in code_blocks:
+            if lang.lower() in aliases:
+                matching_code.append(code)
+        
+        return "\n".join(matching_code)
+    
+    def run_validation(self, code_path: str) -> Result:
+        """Run cargo check for code validation."""
+        errors = []
+        try:
+            result = subprocess.run(
+                ["cargo", "check", "--message-format=json"],
+                cwd=code_path,
+                capture_output=True,
+                check=False,
+            )
 
-    rust_code = "\n".join(
-        code for lang, code in code_blocks if lang.lower() in ["rust", "rs"]
-    )
-    logging.debug(rust_code)
-    return rust_code, response, prompt_tokens, completion_tokens
+            # Parse the JSON output line by line
+            for line in result.stdout.decode().split("\n"):
+                if line.strip():
+                    msg = json.loads(line)
+                    if msg.get("reason") == "compiler-message":
+                        if msg.get("message", {}).get("level") == "error":
+                            error_msg = msg.get("message", {}).get(
+                                "rendered", "Unknown error"
+                            )
+                            logging.error("Cargo check error: %s", error_msg)
+                            errors.append(error_msg)
 
+            return Result(success=result.returncode == 0, errors=errors)
 
-def run_cargo_check(code_path: str) -> Result:
-    errors = []
-    try:
-        result = subprocess.run(
-            ["cargo", "check", "--message-format=json"],
-            cwd=code_path,
-            capture_output=True,
-            check=False,
-        )
-
-        # Parse the JSON output line by line
-        for line in result.stdout.decode().split("\n"):
-            if line.strip():
-                msg = json.loads(line)
-                if msg.get("reason") == "compiler-message":
-                    if msg.get("message", {}).get("level") == "error":
-                        error_msg = msg.get("message", {}).get(
-                            "rendered", "Unknown error"
-                        )
-                        logging.error("Cargo check error: %s", error_msg)
-                        errors.append(error_msg)
-
-        return Result(success=result.returncode == 0, errors=errors)
-
-    except (subprocess.SubprocessError, json.JSONDecodeError) as e:
-        logging.error("Error during cargo check: %s", e)
-        return Result(success=False, errors=[str(e)])
-
-
-def run_rust_project(code_path: str, url: str = None) -> Tuple[threading.Thread, ProcessManager, bool]:
-    """
-    Runs the Rust project in a separate thread with proper synchronization.
-
-    Args:
-        code_path: Path to the Rust project directory
-        url: Optional URL to check for server readiness
-
-    Returns:
-        Tuple containing (thread_handle, process_manager, is_ready)
-    """
-    process_manager = ProcessManager()
-
-    def run_target():
-        process_manager.start_process(
-            ["cargo", "run"],
-            cwd=code_path,
-        )
-
-    thread = threading.Thread(target=run_target)
-    thread.start()
-
-    # Wait for process to start
-    if not process_manager.wait_for_start():
-        return thread, process_manager, False
-
-    # Wait for server to be ready if URL provided
-    is_ready = True
-    if url:
-        is_ready = wait_for_server_ready(url)
-
-    return thread, process_manager, is_ready
-
-
-def run_rust_project_with_output(code_path: str) -> Result:
-    """
-    Runs the Rust project and returns its output.
-    Times out after 5 seconds.
-
-    Args:
-        code_path: Path to the Rust project directory
-
-    Returns:
-        Result object containing success status and either output or error message
-    """
-    try:
-        result = subprocess.run(
-            ["cargo", "run", "-q"],
-            cwd=code_path,
-            capture_output=True,
-            text=True,
-            timeout=60,  # 5 second timeout
-            check=False,
-        )
-
-        if result.stderr:
-            logging.debug("Raw Err Output: %s", result.stderr)
+        except (subprocess.SubprocessError, json.JSONDecodeError) as e:
+            logging.error("Error during cargo check: %s", e)
+            return Result(success=False, errors=[str(e)])
+    
+    def get_run_command(self) -> List[str]:
+        """Get command to run Rust code."""
+        return ["cargo", "run"]
+    
+    def get_build_command(self) -> Optional[List[str]]:
+        """Get the build command for Rust."""
+        return ["cargo", "build"]
+    
+    def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
+        """Extract Rust-specific build errors."""
+        errors = []
+        if stderr and ("error:" in stderr or "error[" in stderr):
+            errors.append(stderr)
+        return errors if errors else ["Build failed"]
+    
+    def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
+        """Extract Rust-specific runtime errors."""
+        if stderr:
             if (
-                result.stderr.find("error:") != -1
-                or result.stderr.find("panicked") != -1
-                or result.stderr.find("RUST_BACKTRACE") != -1
+                stderr.find("error:") != -1
+                or stderr.find("panicked") != -1
+                or stderr.find("RUST_BACKTRACE") != -1
             ):
-                return Result(success=False, errors=[result.stderr])
+                return [stderr]
+        return ["Runtime error occurred"]
+    
+    def run_script(self, code_path: str, timeout: int = 60) -> Result:
+        """
+        Runs the Rust project and returns its output.
+        """
+        try:
+            result = subprocess.run(
+                ["cargo", "run", "-q"],
+                cwd=code_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
 
-        logging.debug("Raw Output: %s", result.stdout)
-        return Result(success=True, errors=[], output=result.stdout)
+            if result.stderr:
+                logging.debug("Raw Err Output: %s", result.stderr)
+                if (
+                    result.stderr.find("error:") != -1
+                    or result.stderr.find("panicked") != -1
+                    or result.stderr.find("RUST_BACKTRACE") != -1
+                ):
+                    return Result(success=False, errors=[result.stderr])
 
-    except subprocess.TimeoutExpired:
-        logging.error("Rust project execution timed out after 5 seconds")
-        return Result(success=False, errors=["Execution timed out after 5 seconds"])
-    except subprocess.SubprocessError as e:
-        logging.error("Error running Rust project: %s", e)
-        return Result(success=False, errors=[str(e)])
+            logging.debug("Raw Output: %s", result.stdout)
+            return Result(success=True, errors=[], output=result.stdout)
+
+        except subprocess.TimeoutExpired:
+            logging.error(f"Rust project execution timed out after {timeout} seconds")
+            return Result(success=False, errors=[f"Execution timed out after {timeout} seconds"])
+        except subprocess.SubprocessError as e:
+            logging.error("Error running Rust project: %s", e)
+            return Result(success=False, errors=[str(e)])
+    
+    def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
+        """
+        Prepare Rust code for TaskCall execution by wrapping it with input handling.
+        """
+        # For Rust, we need to add code to parse input and call the function
+        wrapped_code = f"""
+{code.strip()}
+
+fn main() {{
+    let input = r#"{input_contents}"#;
+    let result = example(input);
+    println!("{{}}", result);
+}}
+"""
+        return self.prepare_codebase(wrapped_code)
+    
+    def remove_rust_main_function(self, code: str) -> str:
+        """
+        Removes any Rust 'fn main' function from the provided code string, even if
+        there are braces in raw strings, nested blocks, etc.
+        """
+        # Regex to find the *start* of fn main:
+        #   - Optional attributes (#[...])
+        #   - Optional 'async'
+        #   - 'fn main' with optional spaces
+        #   - '( )' for parameters
+        #   - Optional return type with parentheses/brackets
+        #   - The '{' that starts the function body
+        pattern = re.compile(
+            r"(?:\#\[.*?\]\s*)*"  # zero or more attributes like #[tokio::main]
+            r"(?:async\s+)?"  # optional 'async'
+            r"fn\s+main\s*"  # 'fn main' plus optional whitespace
+            r"\(\s*\)\s*"  # the ( ) for main, possibly with spaces
+            r"(?:->\s*[\w:<,>\(\)\[\]\s]+)?"  # optional return type e.g. -> Result<...>
+            r"\s*\{",  # the opening brace
+            re.DOTALL,
+        )
+
+        # Find all possible starts of fn main.
+        matches = list(pattern.finditer(code))
+        if not matches:
+            return code  # No fn main found
+
+        # We'll collect the slices of code to keep.
+        # We'll remove everything from match.start() to the matching '}'.
+        to_keep = []
+        last_end = 0
+
+        for match in matches:
+            start_index = match.start()
+            # Add the code *before* this main function to the kept text.
+            to_keep.append(code[last_end:start_index])
+
+            # We'll now find the matching brace after `match.end() - 1`.
+            # We already know there's an opening '{' at match.end() - 1.
+            brace_count = 1
+            pos = match.end()  # Start scanning right *after* the '{'
+
+            while pos < len(code) and brace_count > 0:
+                if code[pos] == "{":
+                    brace_count += 1
+                elif code[pos] == "}":
+                    brace_count -= 1
+                pos += 1
+
+            # By now, pos is either:
+            # - Just after the matching '}' (brace_count == 0)
+            # - Or the end of file if braces never matched up
+            last_end = pos  # We'll skip everything from 'start_index' to 'pos'
+
+        # Finally, add any leftover code after the last removed main function
+        to_keep.append(code[last_end:])
+
+        return "".join(to_keep)
 
 
-def remove_rust_main_function(code: str) -> str:
-    """
-    Removes any Rust 'fn main' function from the provided code string, even if
-    there are braces in raw strings, nested blocks, etc.
-    """
-    # Regex to find the *start* of fn main:
-    #   - Optional attributes (#[...])
-    #   - Optional 'async'
-    #   - 'fn main' with optional spaces
-    #   - '( )' for parameters
-    #   - Optional return type with parentheses/brackets
-    #   - The '{' that starts the function body
-    pattern = re.compile(
-        r"(?:\#\[.*?\]\s*)*"  # zero or more attributes like #[tokio::main]
-        r"(?:async\s+)?"  # optional 'async'
-        r"fn\s+main\s*"  # 'fn main' plus optional whitespace
-        r"\(\s*\)\s*"  # the ( ) for main, possibly with spaces
-        r"(?:->\s*[\w:<,>\(\)\[\]\s]+)?"  # optional return type e.g. -> Result<...>
-        r"\s*\{",  # the opening brace
-        re.DOTALL,
-    )
+# Create singleton instance
+rust_utils = RustUtils()
 
-    # Find all possible starts of fn main.
-    matches = list(pattern.finditer(code))
-    if not matches:
-        return code  # No fn main found
-
-    # We'll collect the slices of code to keep.
-    # We'll remove everything from match.start() to the matching '}'.
-    to_keep = []
-    last_end = 0
-
-    for match in matches:
-        start_index = match.start()
-        # Add the code *before* this main function to the kept text.
-        to_keep.append(code[last_end:start_index])
-
-        # We'll now find the matching brace after `match.end() - 1`.
-        # We already know there's an opening '{' at match.end() - 1.
-        brace_count = 1
-        pos = match.end()  # Start scanning right *after* the '{'
-
-        while pos < len(code) and brace_count > 0:
-            if code[pos] == "{":
-                brace_count += 1
-            elif code[pos] == "}":
-                brace_count -= 1
-            pos += 1
-
-        # By now, pos is either:
-        # - Just after the matching '}' (brace_count == 0)
-        # - Or the end of file if braces never matched up
-        last_end = pos  # We'll skip everything from 'start_index' to 'pos'
-
-    # Finally, add any leftover code after the last removed main function
-    to_keep.append(code[last_end:])
-
-    return "".join(to_keep)
+# Export backward-compatible functions
+prepare_codebase = rust_utils.prepare_codebase
+query_code = rust_utils.query_code
+run_cargo_check = rust_utils.run_validation
+run_rust_project_with_output = rust_utils.run_script
+remove_rust_main_function = rust_utils.remove_rust_main_function

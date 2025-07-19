@@ -1,12 +1,12 @@
 from typing import Union
 from task import TaskCall, TaskContains, TaskRun, TaskCheck, Language
 from utils import TaskResult
-import exec_rust
-import exec_swift
-import exec_typescript
-import exec_python
-import exec_php
-import exec_lua
+from exec_rust import exec_call as rust_exec_call, exec_contains as rust_exec_contains, exec_run as rust_exec_run, exec_check as rust_exec_check
+from exec_swift import exec_call as swift_exec_call, exec_contains as swift_exec_contains, exec_run as swift_exec_run, exec_check as swift_exec_check
+from exec_typescript import exec_call as ts_exec_call, exec_contains as ts_exec_contains, exec_run as ts_exec_run, exec_check as ts_exec_check
+from exec_python import exec_call as py_exec_call, exec_contains as py_exec_contains, exec_run as py_exec_run, exec_check as py_exec_check
+from exec_php import exec_call as php_exec_call, exec_contains as php_exec_contains, exec_run as php_exec_run, exec_check as php_exec_check
+from exec_lua import exec_call as lua_exec_call, exec_contains as lua_exec_contains, exec_run as lua_exec_run, exec_check as lua_exec_check
 
 
 class Executor:
@@ -32,64 +32,64 @@ class Executor:
 
     def _exec_call(self, task: TaskCall, model: str, run: int) -> TaskResult:
         if self.language == Language.RUST:
-            return exec_rust.exec_call(task, model, run)
+            return rust_exec_call(task, model, run)
         elif self.language == Language.SWIFT:
-            return exec_swift.exec_call(task, model, run)
+            return swift_exec_call(task, model, run)
         elif self.language == Language.TYPESCRIPT:
-            return exec_typescript.exec_call(task, model, run)
+            return ts_exec_call(task, model, run)
         elif self.language == Language.PYTHON:
-            return exec_python.exec_call(task, model, run)
+            return py_exec_call(task, model, run)
         elif self.language == Language.PHP:
-            return exec_php.exec_call(task, model, run)
+            return php_exec_call(task, model, run)
         elif self.language == Language.LUA:
-            return exec_lua.exec_call(task, model, run)
+            return lua_exec_call(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
     def _exec_contains(self, task: TaskContains, model: str, run: int) -> TaskResult:
         if self.language == Language.RUST:
-            return exec_rust.exec_contains(task, model, run)
+            return rust_exec_contains(task, model, run)
         elif self.language == Language.SWIFT:
-            return exec_swift.exec_contains(task, model, run)
+            return swift_exec_contains(task, model, run)
         elif self.language == Language.TYPESCRIPT:
-            return exec_typescript.exec_contains(task, model, run)
+            return ts_exec_contains(task, model, run)
         elif self.language == Language.PYTHON:
-            return exec_python.exec_contains(task, model, run)
+            return py_exec_contains(task, model, run)
         elif self.language == Language.PHP:
-            return exec_php.exec_contains(task, model, run)
+            return php_exec_contains(task, model, run)
         elif self.language == Language.LUA:
-            return exec_lua.exec_contains(task, model, run)
+            return lua_exec_contains(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
     def _exec_run(self, task: TaskRun, model: str, run: int) -> TaskResult:
         if self.language == Language.RUST:
-            return exec_rust.exec_run(task, model, run)
+            return rust_exec_run(task, model, run)
         elif self.language == Language.SWIFT:
-            return exec_swift.exec_run(task, model, run)
+            return swift_exec_run(task, model, run)
         elif self.language == Language.TYPESCRIPT:
-            return exec_typescript.exec_run(task, model, run)
+            return ts_exec_run(task, model, run)
         elif self.language == Language.PYTHON:
-            return exec_python.exec_run(task, model, run)
+            return py_exec_run(task, model, run)
         elif self.language == Language.PHP:
-            return exec_php.exec_run(task, model, run)
+            return php_exec_run(task, model, run)
         elif self.language == Language.LUA:
-            return exec_lua.exec_run(task, model, run)
+            return lua_exec_run(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
     def _exec_check(self, task: TaskCheck, model: str, run: int) -> TaskResult:
         if self.language == Language.RUST:
-            return exec_rust.exec_check(task, model, run)
+            return rust_exec_check(task, model, run)
         elif self.language == Language.SWIFT:
-            return exec_swift.exec_check(task, model, run)
+            return swift_exec_check(task, model, run)
         elif self.language == Language.TYPESCRIPT:
-            return exec_typescript.exec_check(task, model, run)
+            return ts_exec_check(task, model, run)
         elif self.language == Language.PYTHON:
-            return exec_python.exec_check(task, model, run)
+            return py_exec_check(task, model, run)
         elif self.language == Language.PHP:
-            return exec_php.exec_check(task, model, run)
+            return php_exec_check(task, model, run)
         elif self.language == Language.LUA:
-            return exec_lua.exec_check(task, model, run)
+            return lua_exec_check(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")

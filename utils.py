@@ -237,10 +237,10 @@ class ProcessManager:
     """
     
     def __init__(self):
-        self.process = None
+        self.process: Optional[subprocess.Popen] = None
         self.process_lock = threading.Lock()
         self.process_started = threading.Event()
-        self.start_error = None
+        self.start_error: Optional[subprocess.SubprocessError] = None
         
     def start_process(self, args: list, **kwargs):
         """

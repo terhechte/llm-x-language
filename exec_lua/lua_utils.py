@@ -1,5 +1,4 @@
 import os
-import tempfile
 import subprocess
 import logging
 from typing import List, Optional, Tuple
@@ -12,37 +11,16 @@ class LuaUtils(BaseLanguageUtils):
     """Lua-specific language utilities."""
     
     def __init__(self):
-        # Lua doesn't use a container, so we use temp directory
         super().__init__(
             language="Lua",
-            template_name="",  # No container
+            template_name="lua_container",
             main_file="main.lua"
         )
-        self.temp_dir: Optional[str] = None
     
     def get_language_aliases(self) -> List[str]:
         """Return Lua language aliases."""
         return ["lua"]
     
-    def prepare_codebase(self, code: str) -> str:
-        """
-        Prepare a temporary directory with the Lua code.
-        Returns the path to the temporary directory.
-        """
-        try:
-            # Create a temporary directory
-            temp_dir = tempfile.mkdtemp()
-            self.temp_dir = temp_dir
-            code_path = os.path.join(temp_dir, self.main_file)
-            
-            # Write the code to a file
-            with open(code_path, "w") as f:
-                f.write(code)
-            
-            return temp_dir
-        except Exception as e:
-            logging.error(f"Failed to write Lua code: {e}")
-            raise
     
     def query_code(self, prompt: str, model: str) -> Optional[Tuple[str, str, int, int]]:
         """
@@ -90,7 +68,7 @@ class LuaUtils(BaseLanguageUtils):
     
     def get_run_command(self) -> List[str]:
         """Get command to run Lua code."""
-        return ["lua", self.main_file]
+        return ["./run.sh"]
     
     def get_build_command(self) -> Optional[List[str]]:
         """Lua doesn't need a build step."""
@@ -115,7 +93,7 @@ local input = "{input_contents}"
 local result = example(input)
 print(result)
 """
-        return self.prepare_codebase(wrapped_code)
+        return super().prepare_codebase(wrapped_code)
 
 
 # Create singleton instance

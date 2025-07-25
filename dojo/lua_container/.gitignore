@@ -1,0 +1,9 @@
+# Lua specific
+*.lua.out
+luarocks/
+.luarocks/
+
+# General
+*.log
+*.tmp
+.DS_Store

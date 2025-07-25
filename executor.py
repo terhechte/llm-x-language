@@ -7,6 +7,8 @@ from exec_typescript import exec_call as ts_exec_call, exec_contains as ts_exec_
 from exec_python import exec_call as py_exec_call, exec_contains as py_exec_contains, exec_run as py_exec_run, exec_check as py_exec_check
 from exec_php import exec_call as php_exec_call, exec_contains as php_exec_contains, exec_run as php_exec_run, exec_check as php_exec_check
 from exec_lua import exec_call as lua_exec_call, exec_contains as lua_exec_contains, exec_run as lua_exec_run, exec_check as lua_exec_check
+from exec_go import exec_call as go_exec_call, exec_contains as go_exec_contains, exec_run as go_exec_run, exec_check as go_exec_check
+from exec_kotlin import exec_call as kotlin_exec_call, exec_contains as kotlin_exec_contains, exec_run as kotlin_exec_run, exec_check as kotlin_exec_check
 
 
 class Executor:
@@ -43,6 +45,10 @@ class Executor:
             return php_exec_call(task, model, run)
         elif self.language == Language.LUA:
             return lua_exec_call(task, model, run)
+        elif self.language == Language.GO:
+            return go_exec_call(task, model, run)
+        elif self.language == Language.KOTLIN:
+            return kotlin_exec_call(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -59,6 +65,10 @@ class Executor:
             return php_exec_contains(task, model, run)
         elif self.language == Language.LUA:
             return lua_exec_contains(task, model, run)
+        elif self.language == Language.GO:
+            return go_exec_contains(task, model, run)
+        elif self.language == Language.KOTLIN:
+            return kotlin_exec_contains(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -75,6 +85,10 @@ class Executor:
             return php_exec_run(task, model, run)
         elif self.language == Language.LUA:
             return lua_exec_run(task, model, run)
+        elif self.language == Language.GO:
+            return go_exec_run(task, model, run)
+        elif self.language == Language.KOTLIN:
+            return kotlin_exec_run(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -91,5 +105,9 @@ class Executor:
             return php_exec_check(task, model, run)
         elif self.language == Language.LUA:
             return lua_exec_check(task, model, run)
+        elif self.language == Language.GO:
+            return go_exec_check(task, model, run)
+        elif self.language == Language.KOTLIN:
+            return kotlin_exec_check(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")

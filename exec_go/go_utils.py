@@ -1,0 +1,136 @@
+import os
+import subprocess
+import logging
+from typing import List, Optional
+
+from base_executor import BaseLanguageUtils
+from utils import Result
+
+
+class GoUtils(BaseLanguageUtils):
+    """Go-specific language utilities."""
+    
+    def __init__(self):
+        super().__init__(
+            language="Go",
+            template_name="go_container",
+            main_file="main.go"
+        )
+    
+    def get_language_aliases(self) -> List[str]:
+        """Return Go language aliases."""
+        return ["go", "golang"]
+    
+    def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
+        """
+        Prepare Go code for TaskCall execution by wrapping it with input handling.
+        """
+        wrapped_code = f"""package main
+
+import (
+    "fmt"
+)
+
+{code.strip()}
+
+func main() {{
+    input := `{input_contents}`
+    result := example(input)
+    fmt.Println(result)
+}}
+"""
+        return self.prepare_codebase(wrapped_code)
+    
+    def run_validation(self, code_path: str) -> Result:
+        """Run go vet and gofmt to check for errors."""
+        errors = []
+        
+        # First run gofmt to check formatting
+        try:
+            result = subprocess.run(
+                ["gofmt", "-l", "main.go"],
+                cwd=code_path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            
+            if result.stdout.strip():
+                errors.append(f"Formatting issues in: {result.stdout.strip()}")
+        except subprocess.SubprocessError as e:
+            logging.error("Error during gofmt check: %s", e)
+            errors.append(f"gofmt error: {str(e)}")
+        
+        # Then run go vet for static analysis
+        try:
+            result = subprocess.run(
+                ["go", "vet", "./..."],
+                cwd=code_path,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            
+            if result.stderr:
+                errors.append(f"go vet errors: {result.stderr}")
+            
+            if result.returncode != 0 and not result.stderr:
+                errors.append("go vet failed")
+                
+        except subprocess.SubprocessError as e:
+            logging.error("Error during go vet check: %s", e)
+            errors.append(f"go vet error: {str(e)}")
+        
+        return Result(success=len(errors) == 0, errors=errors)
+    
+    def get_run_command(self) -> List[str]:
+        """Get command to run Go code."""
+        return ["go", "run", "main.go"]
+    
+    def get_build_command(self) -> Optional[List[str]]:
+        """Get the build command for Go."""
+        return ["go", "build", "-o", "main", "main.go"]
+    
+    def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
+        """Extract Go-specific build errors."""
+        errors = []
+        
+        # Go outputs errors to stderr
+        if stderr:
+            # Parse Go error format (file:line:column: message)
+            for line in stderr.split('\n'):
+                if line.strip() and '.go:' in line:
+                    errors.append(line.strip())
+                elif line.strip() and 'error:' in line.lower():
+                    errors.append(line.strip())
+        
+        # Sometimes errors appear in stdout too
+        if stdout and 'error' in stdout.lower():
+            for line in stdout.split('\n'):
+                if line.strip() and '.go:' in line:
+                    errors.append(line.strip())
+        
+        return errors if errors else ["Build failed"]
+    
+    def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
+        """Extract Go-specific runtime errors."""
+        errors = []
+        
+        if stderr:
+            # Look for panic messages or runtime errors
+            if 'panic:' in stderr or 'runtime error:' in stderr:
+                errors.append(stderr)
+            else:
+                errors.append(f"Runtime error: {stderr}")
+        
+        return errors if errors else ["Runtime error occurred"]
+
+
+# Create singleton instance
+go_utils = GoUtils()
+
+# Export backward-compatible functions
+prepare_codebase = go_utils.prepare_codebase
+query_code = go_utils.query_code
+run_go_check = go_utils.run_validation
+run_go_script = go_utils.run_script

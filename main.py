@@ -98,15 +98,18 @@ def main():
     setup_logging()
     multi_runs = False
     languages = [
-        Language.SWIFT,
-        Language.RUST,
-        Language.TYPESCRIPT,
-        Language.PYTHON,
-        Language.PHP,
+        # Language.SWIFT,
+        # Language.RUST,
+        # Language.TYPESCRIPT,
+        # Language.PYTHON,
+        # Language.PHP,
+        # Language.GO,
+        Language.KOTLIN
     ]
     limit = None  # "types1.json"
     skip_lang_specific = True  # should the lang specific tasks be skipped
     models = [
+        "openrouter/qwen/qwen3-30b-a3b",
         "lmstudio/deepcogito_cogito-v1-preview-qwen-32b",
         "openrouter/openai/gpt-4.1-mini",
         "openrouter/openai/gpt-4.1",
@@ -169,6 +172,13 @@ def main():
         "openrouter/openai/gpt-4o",
         "openrouter/mistralai/mistral-small-24b-instruct-2501",
     ]
+    models = [
+        "openrouter/mistralai/devstral-small",
+    ]
+    #    | Model                             | Run | Success | Failure |
+    # |-----------------------------------|--------|---------|----------|
+    # | lmstudio/qwen3-30b-a6b-16-extreme |   1    |   56    |    54    |
+    # | openrouter/qwen/qwen3-30b-a3b     |   1    |   68    |    42    |
     model_infos = model_info(models)
     for model in models:
         for language in languages:

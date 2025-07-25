@@ -54,6 +54,8 @@ class Language(Enum):
     PYTHON = "python"
     PHP = "php"
     LUA = "lua"
+    GO = "go"
+    KOTLIN = "kotlin"
 
     def string_type(self) -> str:
         if self == Language.RUST:
@@ -66,6 +68,10 @@ class Language(Enum):
             return "`str`"
         elif self == Language.PHP:
             return "`string`"
+        elif self == Language.GO:
+            return "`string`"
+        elif self == Language.KOTLIN:
+            return "`String`"
         else:
             return "`String`"
 
@@ -392,13 +398,17 @@ def process_prompt(prompt: str, language: Language, task_type: str) -> str:
     # Handle language-specific additions
     # Add base language content
     try:
-        with open(os.path.join(TASKS_DIR, f"{language.value}/_add.md"), "r", encoding="utf-8") as f:
+        with open(
+            os.path.join(TASKS_DIR, f"{language.value}/_add.md"), "r", encoding="utf-8"
+        ) as f:
             lang_content = f.read()
         processed_prompt += "\n\n" + _process_prompt(
             lang_content, string_type, language
         )
     except FileNotFoundError:
-        print(f"Warning: {language.value}/_add.md not found, skipping language-specific content")
+        print(
+            f"Warning: {language.value}/_add.md not found, skipping language-specific content"
+        )
     except IOError as e:
         print(f"Warning: Could not read {language.value}/_add.md: {e}")
 
@@ -411,13 +421,17 @@ def process_prompt(prompt: str, language: Language, task_type: str) -> str:
 
     if task_type in task_files:
         try:
-            with open(os.path.join(TASKS_DIR, task_files[task_type]), "r", encoding="utf-8") as f:
+            with open(
+                os.path.join(TASKS_DIR, task_files[task_type]), "r", encoding="utf-8"
+            ) as f:
                 task_content = f.read()
             processed_prompt += "\n\n" + _process_prompt(
                 task_content, string_type, language
             )
         except FileNotFoundError:
-            print(f"Warning: {task_files[task_type]} not found, skipping task-specific content")
+            print(
+                f"Warning: {task_files[task_type]} not found, skipping task-specific content"
+            )
         except IOError as e:
             print(f"Warning: Could not read {task_files[task_type]}: {e}")
 

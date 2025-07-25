@@ -107,7 +107,7 @@ def main():
         Language.LUA,
         Language.KOTLIN,
     ]
-    limit = None  # "types1.json"
+    limit = None  # "simple.json"  # "types1.json"
     skip_lang_specific = True  # should the lang specific tasks be skipped
     models = [
         "openrouter/qwen/qwen3-30b-a3b",

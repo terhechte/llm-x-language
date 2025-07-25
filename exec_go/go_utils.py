@@ -25,18 +25,36 @@ class GoUtils(BaseLanguageUtils):
         """
         Prepare Go code for TaskCall execution by wrapping it with input handling.
         """
-        wrapped_code = f"""package main
+        # Check if code already has package declaration
+        if "package main" in code:
+            # If it has package main, check for main function
+            if "func main()" in code:
+                # Code has main function, use as-is
+                return self.prepare_codebase(code)
+            else:
+                # The AI should provide all necessary imports
+                # We just add the main function
+                wrapped_code = f"""{code.strip()}
 
-import (
-    "fmt"
-)
+func main() {{
+    input := `{input_contents}`
+    result := example(input)
+    // The AI should have imported fmt if it needs println
+    // Otherwise it might use a different output method
+    println(result)
+}}
+"""
+        else:
+            # No package declaration - the AI should provide complete code
+            # Let's add minimal wrapper
+            wrapped_code = f"""package main
 
 {code.strip()}
 
 func main() {{
     input := `{input_contents}`
     result := example(input)
-    fmt.Println(result)
+    println(result)
 }}
 """
         return self.prepare_codebase(wrapped_code)

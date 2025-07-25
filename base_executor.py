@@ -42,6 +42,8 @@ class BaseLanguageUtils(ABC):
             os.makedirs(os.path.dirname(main_file_path), exist_ok=True)
             with open(main_file_path, "w", encoding="utf-8") as f:
                 f.write(code)
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
             return self.template_dest
         except IOError as e:
             logging.error(f"Failed to write {self.language} code to {self.main_file}: {e}")

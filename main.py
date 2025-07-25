@@ -103,8 +103,9 @@ def main():
         # Language.TYPESCRIPT,
         # Language.PYTHON,
         # Language.PHP,
-        # Language.GO,
-        Language.KOTLIN
+        Language.GO,
+        Language.LUA,
+        Language.KOTLIN,
     ]
     limit = None  # "types1.json"
     skip_lang_specific = True  # should the lang specific tasks be skipped

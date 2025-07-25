@@ -50,15 +50,55 @@ class KotlinUtils(BaseLanguageUtils):
 
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """Prepare Kotlin code for TaskCall execution."""
-        # Wrap the code in a main function that calls the example function
-        wrapped_code = f"""import kotlin.text.*
+        # Check if code already has a main function
+        if "fun main" in code:
+            # If it has main, just use the code as-is
+            return self.prepare_codebase(code)
+        
+        # Validate that the code contains an example function
+        if "fun example" not in code:
+            # If no example function, the AI might have generated something else
+            # Log this for debugging
+            import logging
+            logging.warning(f"Kotlin code does not contain 'fun example': {code[:200]}...")
+        
+        # Escape the input contents for Kotlin string literal
+        escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+        
+        # Check if code already has imports
+        has_imports = any(imp in code for imp in ["import ", "package "])
+        
+        if has_imports:
+            # Code already has imports, just add main function
+            wrapped_code = f"""{code.strip()}
+
+fun main() {{
+    val input = "{escaped_input}"
+    val result = example(input)
+    println(result)
+}}
+"""
+        else:
+            # Add full imports and main function
+            wrapped_code = f"""import kotlin.text.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import kotlinx.datetime.*
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.server.application.*
+import io.ktor.server.engine.*
+import io.ktor.server.cio.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.http.*
 
 {code.strip()}
 
 fun main() {{
-    val input = "{input_contents}"
+    val input = "{escaped_input}"
     val result = example(input)
     println(result)
 }}
@@ -72,6 +112,17 @@ fun main() {{
             wrapped_code = f"""import kotlin.text.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import kotlinx.datetime.*
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.server.application.*
+import io.ktor.server.engine.*
+import io.ktor.server.cio.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.http.*
 
 {code.strip()}
 
@@ -91,6 +142,17 @@ fun main() {{
         wrapped_code = f"""import kotlin.text.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import kotlinx.datetime.*
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.server.application.*
+import io.ktor.server.engine.*
+import io.ktor.server.cio.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.http.*
 
 {code.strip()}
 
@@ -106,15 +168,8 @@ fun main() {{
             # Determine OS-specific gradlew command
             gradlew_cmd = "./gradlew" if os.name != 'nt' else "gradlew.bat"
             
-            # Clean previous build
-            subprocess.run(
-                [gradlew_cmd, "clean"],
-                cwd=code_path,
-                capture_output=True,
-                text=True,
-                timeout=10,
-                shell=(os.name == 'nt')  # Use shell on Windows
-            )
+            # Skip clean to avoid potential issues with file timing
+            # Previous builds will be overwritten anyway
             
             # Build the native executable
             result = subprocess.run(

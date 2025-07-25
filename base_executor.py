@@ -37,24 +37,13 @@ class BaseLanguageUtils(ABC):
         """
         Prepares the codebase by writing the code to the main file in the template directory.
         """
-        import time
         try:
             main_file_path = os.path.join(self.template_dest, self.main_file)
-            print(f"[DEBUG {time.time():.3f}] prepare_codebase: Writing {len(code)} chars to {main_file_path}")
-            
             os.makedirs(os.path.dirname(main_file_path), exist_ok=True)
             with open(main_file_path, "w", encoding="utf-8") as f:
                 f.write(code)
                 f.flush()
                 os.fsync(f.fileno())  # Force write to disk
-            
-            # Verify file was written
-            if os.path.exists(main_file_path):
-                file_size = os.path.getsize(main_file_path)
-                print(f"[DEBUG {time.time():.3f}] prepare_codebase: File written successfully, size: {file_size} bytes")
-            else:
-                print(f"[DEBUG {time.time():.3f}] prepare_codebase: WARNING - File does not exist after write!")
-            
             return self.template_dest
         except IOError as e:
             logging.error(f"Failed to write {self.language} code to {self.main_file}: {e}")
@@ -241,7 +230,6 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
         )
     
     # Run validation
-    print(f"[DEBUG {time.time():.3f}] exec_call_common:404: Starting validation")
     result = utils.run_validation(code_path)
     if not result.success:
         return TaskResult(
@@ -365,9 +353,6 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
     """
     Common implementation for executing a TaskCall.
     """
-    import time
-    print(f"[DEBUG {time.time():.3f}] exec_call_common: Starting for {utils.language}")
-    
     try:
         r = utils.query_code(task.prompt, model)
     except (ValueError, RuntimeError, TimeoutError) as e:
@@ -384,10 +369,8 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             tokens=(0, 0),
         )
     code, response, prompt_tokens, completion_tokens = r
-    print(f"[DEBUG {time.time():.3f}] exec_call_common: Got code from LLM, length: {len(code)} chars")
     
     # Use the prepare_codebase_for_call method (which may be overridden)
-    print(f"[DEBUG {time.time():.3f}] exec_call_common: Calling prepare_codebase_for_call")
     code_path = utils.prepare_codebase_for_call(code, task.input_contents)
     
     if not code_path:
@@ -403,7 +386,6 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
         )
     
     # Run validation
-    print(f"[DEBUG {time.time():.3f}] exec_call_common:404: Starting validation")
     result = utils.run_validation(code_path)
     if not result.success:
         return TaskResult(
@@ -505,7 +487,6 @@ def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguage
         )
     
     # Run validation
-    print(f"[DEBUG {time.time():.3f}] exec_call_common:404: Starting validation")
     result = utils.run_validation(code_path)
     
     return TaskResult(

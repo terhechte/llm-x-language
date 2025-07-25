@@ -60,23 +60,24 @@ func main() {{
         return self.prepare_codebase(wrapped_code)
     
     def run_validation(self, code_path: str) -> Result:
-        """Run go vet and gofmt to check for errors."""
+        """Run gofmt to fix formatting and go vet to check for errors."""
         errors = []
         
-        # First run gofmt to check formatting
+        # First run gofmt -w to automatically fix formatting
         try:
             result = subprocess.run(
-                ["gofmt", "-l", "main.go"],
+                ["gofmt", "-w", "main.go"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,
                 check=False,
             )
             
-            if result.stdout.strip():
-                errors.append(f"Formatting issues in: {result.stdout.strip()}")
+            # gofmt -w doesn't produce output on success, only on error
+            if result.stderr:
+                errors.append(f"gofmt error: {result.stderr}")
         except subprocess.SubprocessError as e:
-            logging.error("Error during gofmt check: %s", e)
+            logging.error("Error during gofmt fix: %s", e)
             errors.append(f"gofmt error: {str(e)}")
         
         # Then run go vet for static analysis

@@ -50,14 +50,9 @@ class KotlinUtils(BaseLanguageUtils):
 
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """Prepare Kotlin code for TaskCall execution."""
-        import time
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: Received {len(code)} chars of code")
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: Code preview: {code[:100]}...")
-        
         # Check if code already has a main function
         if "fun main" in code:
             # If it has main, just use the code as-is
-            print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: Code already has main function")
             return self.prepare_codebase(code)
         
         # Validate that the code contains an example function
@@ -66,7 +61,6 @@ class KotlinUtils(BaseLanguageUtils):
             # Log this for debugging
             import logging
             logging.warning(f"Kotlin code does not contain 'fun example': {code[:200]}...")
-            print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: WARNING - No 'fun example' found!")
         
         # Escape the input contents for Kotlin string literal
         escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
@@ -109,10 +103,7 @@ fun main() {{
     println(result)
 }}
 """
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: Wrapped code length: {len(wrapped_code)}")
-        result = self.prepare_codebase(wrapped_code)
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: prepare_codebase returned: {result}")
-        return result
+        return self.prepare_codebase(wrapped_code)
 
     def prepare_codebase_for_contains(self, code: str) -> str:
         """Prepare Kotlin code for TaskContains execution."""
@@ -169,29 +160,11 @@ fun main() {{
     {function_call}
 }}
 """
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: Wrapped code length: {len(wrapped_code)}")
-        result = self.prepare_codebase(wrapped_code)
-        print(f"[DEBUG {time.time():.3f}] kotlin prepare_codebase_for_call: prepare_codebase returned: {result}")
-        return result
+        return self.prepare_codebase(wrapped_code)
 
     def run_validation(self, code_path: str) -> Result:
         """Build Kotlin Native project using Gradle."""
-        import time
         try:
-            print(f"[DEBUG {time.time():.3f}] kotlin run_validation: Starting validation for {code_path}")
-            
-            # Check if the main.kt file exists before build
-            main_file_path = os.path.join(code_path, self.main_file)
-            if os.path.exists(main_file_path):
-                file_size = os.path.getsize(main_file_path)
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: main.kt exists, size: {file_size} bytes")
-                # Read first 200 chars to verify content
-                with open(main_file_path, 'r') as f:
-                    content_preview = f.read(200)
-                    print(f"[DEBUG {time.time():.3f}] kotlin run_validation: File preview: {content_preview}...")
-            else:
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: WARNING - main.kt does not exist!")
-            
             # Determine OS-specific gradlew command
             gradlew_cmd = "./gradlew" if os.name != 'nt' else "gradlew.bat"
             
@@ -199,7 +172,6 @@ fun main() {{
             # Previous builds will be overwritten anyway
             
             # Build the native executable
-            print(f"[DEBUG {time.time():.3f}] kotlin run_validation: Running gradle command: {gradlew_cmd} nativeBinaries")
             result = subprocess.run(
                 [gradlew_cmd, "nativeBinaries", "--console=plain"],
                 cwd=code_path,
@@ -209,22 +181,10 @@ fun main() {{
                 shell=(os.name == 'nt')  # Use shell on Windows
             )
 
-            print(f"[DEBUG {time.time():.3f}] kotlin run_validation: Gradle completed with return code: {result.returncode}")
-            
-            # Check file status after build
-            if os.path.exists(main_file_path):
-                file_size = os.path.getsize(main_file_path)
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: After build - main.kt exists, size: {file_size} bytes")
-            else:
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: After build - WARNING - main.kt missing!")
-            
             if result.returncode != 0:
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: Build failed")
-                print(f"[DEBUG {time.time():.3f}] kotlin run_validation: stderr: {result.stderr[:500]}...")
                 errors = [result.stderr] if result.stderr else ["Compilation failed"]
                 return Result(success=False, errors=errors)
 
-            print(f"[DEBUG {time.time():.3f}] kotlin run_validation: Build succeeded")
             return Result(success=True, errors=[])
         except subprocess.SubprocessError as e:
             logging.error("Error during Kotlin compilation: %s", e)

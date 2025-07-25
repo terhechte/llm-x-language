@@ -9,9 +9,4 @@ def exec_call(task: TaskCall, model: str, run: int) -> TaskResult:
     Execute a TaskCall for Kotlin Native code.
     Returns a TaskResult containing the execution results.
     """
-    import time
-    print(f"[DEBUG {time.time():.3f}] exec_kotlin/exec_call: Starting Kotlin task execution")
-    print(f"[DEBUG {time.time():.3f}] exec_kotlin/exec_call: Task input: {task.input_contents[:100]}...")
-    result = exec_call_common(task, model, run, kotlin_utils)
-    print(f"[DEBUG {time.time():.3f}] exec_kotlin/exec_call: Task completed, success: {result.result.success}")
-    return result
+    return exec_call_common(task, model, run, kotlin_utils)

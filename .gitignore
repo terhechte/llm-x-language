@@ -1,3 +1,7 @@
 dojo/rust_container/target
+dojo/kotlin_container/.gradle
+dojo/kotlin_container/build
+dojo/kotlin_container/gradle
 __pycache__
 .DS_Store
+

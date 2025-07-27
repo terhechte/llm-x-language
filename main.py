@@ -175,11 +175,11 @@ def main():
         "openrouter/mistralai/mistral-small-24b-instruct-2501",
     ]
     models = [
-        # "openrouter/mistralai/devstral-small",
-        # "openrouter/qwen/qwen3-coder",
+        "openrouter/mistralai/devstral-small",
+        "openrouter/qwen/qwen3-coder",
         # "openrouter/qwen/qwen3-235b-a22b-2507",
         # "openrouter/moonshotai/kimi-k2",
-        "openrouter/google/gemini-2.5-flash-lite"
+        "openrouter/google/gemini-2.5-flash-lite",
     ]
     #    | Model                             | Run | Success | Failure |
     # |-----------------------------------|--------|---------|----------|

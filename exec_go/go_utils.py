@@ -164,6 +164,64 @@ func main() {{
                 errors.append(f"Runtime error: {stderr}")
         
         return errors if errors else ["Runtime error occurred"]
+    
+    def run_script(self, code_path: str, timeout: int = 60) -> Result:
+        """
+        Override run_script for Go to handle println() output correctly.
+        In Go, println() writes to stderr, not stdout, which is different from other languages.
+        """
+        try:
+            cmd = self.get_run_command()
+            result = subprocess.run(
+                cmd,
+                cwd=code_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            
+            # For Go, we need to check if stderr contains actual errors or just println output
+            if result.stderr:
+                logging.debug("Raw Err Output: %s", result.stderr)
+                
+                # Check if stderr contains actual Go runtime errors
+                stderr_lower = result.stderr.lower()
+                is_error = (
+                    'panic:' in result.stderr or
+                    'runtime error:' in result.stderr or
+                    'fatal error:' in result.stderr or
+                    'syntax error' in result.stderr or
+                    result.returncode != 0
+                )
+                
+                if is_error:
+                    errors = self.extract_runtime_errors(result.stdout, result.stderr)
+                    return Result(success=False, errors=errors)
+                else:
+                    # Not an error, just println output
+                    # Combine stdout and stderr for the output
+                    combined_output = result.stdout
+                    if result.stderr:
+                        # If stdout is empty, use stderr as output
+                        if not combined_output.strip():
+                            combined_output = result.stderr
+                        else:
+                            # Both have content, append stderr to stdout
+                            combined_output = combined_output.rstrip() + '\n' + result.stderr
+                    
+                    logging.debug("Combined Output: %s", combined_output)
+                    return Result(success=True, errors=[], output=combined_output.strip())
+            
+            logging.debug("Raw Output: %s", result.stdout)
+            return Result(success=True, errors=[], output=result.stdout)
+            
+        except subprocess.TimeoutExpired:
+            logging.error(f"Go script execution timed out after {timeout} seconds")
+            return Result(success=False, errors=[f"Execution timed out after {timeout} seconds"])
+        except subprocess.SubprocessError as e:
+            logging.error(f"Error running Go script: %s", e)
+            return Result(success=False, errors=[str(e)])
 
 
 # Create singleton instance

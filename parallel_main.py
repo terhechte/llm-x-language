@@ -113,8 +113,8 @@ def get_models(specific_model: Optional[str] = None) -> List[str]:
 
     return [
         "openrouter/mistralai/devstral-small",
-        "openrouter/qwen/qwen3-coder",
-        "openrouter/google/gemini-2.5-flash-lite",
+        # "openrouter/qwen/qwen3-coder",
+        # "openrouter/google/gemini-2.5-flash-lite",
     ]
 
     # Default model list (same as main.py)
@@ -190,11 +190,11 @@ def get_languages(specific_language: Optional[str] = None) -> List[Language]:
         return [Language(specific_language)]
 
     return [
-        # Language.SWIFT,
-        # Language.RUST,
-        # Language.TYPESCRIPT,
-        # Language.PYTHON,
-        # Language.PHP,
+        Language.SWIFT,
+        Language.RUST,
+        Language.TYPESCRIPT,
+        Language.PYTHON,
+        Language.PHP,
         Language.GO,
         Language.LUA,
         Language.KOTLIN,

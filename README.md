@@ -1,5 +1,8 @@
 # LLM-X Language
 
+go:
+go install golang.org/x/tools/cmd/goimports@latest
+
 This is a benchmark to compare different LLMs against different languages.
 
 ## Languages
@@ -42,3 +45,20 @@ The results can be found in this blog post which also explains more about the un
 cp .env.example .env
 # edit .env, add openrouter api key
 ```
+
+## Docker Support
+
+The framework now supports running all benchmarks in Docker containers, eliminating the need to install language runtimes locally.
+
+### Quick Start with Docker
+
+```bash
+# Build all Docker images
+./build_docker.sh
+
+# Run benchmarks with Docker
+export LLM_BENCHMARK_USE_DOCKER=true
+python main.py --model_name "gpt-4o"
+```
+
+See [DOCKER.md](DOCKER.md) for detailed Docker documentation.

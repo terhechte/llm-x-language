@@ -11,11 +11,12 @@ from utils import Result
 class PythonUtils(BaseLanguageUtils):
     """Python-specific language utilities."""
     
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Python",
             template_name="python_container",
-            main_file="main.py"
+            main_file="main.py",
+            use_docker=use_docker
         )
     
     def get_language_aliases(self) -> List[str]:

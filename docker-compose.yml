@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  python:
+    build: ./dojo/python_container
+    image: llm-benchmark/python:latest
+    
+  rust:
+    build: ./dojo/rust_container
+    image: llm-benchmark/rust:latest
+    
+  go:
+    build: ./dojo/go_container
+    image: llm-benchmark/go:latest
+    
+  typescript:
+    build: ./dojo/typescript_container
+    image: llm-benchmark/typescript:latest
+    
+  swift:
+    build: ./dojo/swift_container
+    image: llm-benchmark/swift:latest
+    
+  kotlin:
+    build: ./dojo/kotlin_container
+    image: llm-benchmark/kotlin:latest
+    
+  php:
+    build: ./dojo/php_container
+    image: llm-benchmark/php:latest
+    
+  lua:
+    build: ./dojo/lua_container
+    image: llm-benchmark/lua:latest

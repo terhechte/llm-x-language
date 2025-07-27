@@ -152,6 +152,13 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
                 'errors': [str(e)],
                 'run': work_item.run,
                 'task_type': work_item.task.__class__.__name__,
+                'prompt': work_item.task.prompt,
+                'code': '',
+                'response': '',
+                'output': '',
+                'expected_output': getattr(work_item.task, 'expected_output', ''),
+                'is_lang_specific': work_item.task.is_lang_specific,
+                'mutated_code': '',
             },
             cost=Decimal(0),
             duration=time.time() - start_time if 'start_time' in locals() else 0,
@@ -313,30 +320,35 @@ def parallel_execute(
             # Process batches
             for batch_results in pool.imap_unordered(process_task_batch, batches):
                 for result in batch_results:
-                    if result.success:
-                        # Add to database
-                        db.add_result(
-                            result=Result(success=result.result_data['result'], errors=result.result_data['errors']),
-                            model=result.model,
-                            task_name=result.task_name,
-                            prompt=result.result_data['prompt'],
-                            code=result.result_data['code'],
-                            run=result.result_data['run'],
-                            task_type=result.result_data['task_type'],
-                            response=result.result_data['response'],
-                            output=result.result_data['output'],
-                            expected_output=result.result_data['expected_output'],
-                            language=Language(result.language),
-                            errors=result.result_data['errors'],
-                            cost=result.cost,
-                            duration=result.duration,
-                            is_lang_specific=result.result_data['is_lang_specific'],
-                            mutated_code=result.result_data['mutated_code'],
-                        )
-                        
-                        # Accumulate costs
-                        key = (result.model, result.language)
-                        model_language_costs[key] += result.cost
+                    # Create Result object to pass to add_result
+                    task_result = Result(
+                        success=result.result_data['result'], 
+                        errors=result.result_data['errors']
+                    )
+                    
+                    # Add to database (both successful and failed executions)
+                    db.add_result(
+                        result=task_result,
+                        model=result.model,
+                        task_name=result.task_name,
+                        prompt=result.result_data.get('prompt', ''),
+                        code=result.result_data.get('code', ''),
+                        run=result.result_data['run'],
+                        task_type=result.result_data['task_type'],
+                        response=result.result_data.get('response', ''),
+                        output=result.result_data.get('output', ''),
+                        expected_output=result.result_data.get('expected_output', ''),
+                        language=Language(result.language),
+                        errors=result.result_data['errors'],
+                        cost=result.cost,
+                        duration=result.duration,
+                        is_lang_specific=result.result_data.get('is_lang_specific', False),
+                        mutated_code=result.result_data.get('mutated_code', ''),
+                    )
+                    
+                    # Accumulate costs
+                    key = (result.model, result.language)
+                    model_language_costs[key] += result.cost
                     
                     progress.update(1)
                 
@@ -347,30 +359,35 @@ def parallel_execute(
         else:
             # Process individual tasks
             for result in pool.imap_unordered(process_single_task, work_items):
-                if result.success:
-                    # Add to database
-                    db.add_result(
-                        result=Result(success=result.result_data['result'], errors=result.result_data['errors']),
-                        model=result.model,
-                        task_name=result.task_name,
-                        prompt=result.result_data['prompt'],
-                        code=result.result_data['code'],
-                        run=result.result_data['run'],
-                        task_type=result.result_data['task_type'],
-                        response=result.result_data['response'],
-                        output=result.result_data['output'],
-                        expected_output=result.result_data['expected_output'],
-                        language=Language(result.language),
-                        errors=result.result_data['errors'],
-                        cost=result.cost,
-                        duration=result.duration,
-                        is_lang_specific=result.result_data['is_lang_specific'],
-                        mutated_code=result.result_data['mutated_code'],
-                    )
-                    
-                    # Accumulate costs
-                    key = (result.model, result.language)
-                    model_language_costs[key] += result.cost
+                # Create Result object to pass to add_result
+                task_result = Result(
+                    success=result.result_data['result'], 
+                    errors=result.result_data['errors']
+                )
+                
+                # Add to database (both successful and failed executions)
+                db.add_result(
+                    result=task_result,
+                    model=result.model,
+                    task_name=result.task_name,
+                    prompt=result.result_data.get('prompt', ''),
+                    code=result.result_data.get('code', ''),
+                    run=result.result_data['run'],
+                    task_type=result.result_data['task_type'],
+                    response=result.result_data.get('response', ''),
+                    output=result.result_data.get('output', ''),
+                    expected_output=result.result_data.get('expected_output', ''),
+                    language=Language(result.language),
+                    errors=result.result_data['errors'],
+                    cost=result.cost,
+                    duration=result.duration,
+                    is_lang_specific=result.result_data.get('is_lang_specific', False),
+                    mutated_code=result.result_data.get('mutated_code', ''),
+                )
+                
+                # Accumulate costs
+                key = (result.model, result.language)
+                model_language_costs[key] += result.cost
                 
                 progress.update(1)
                 

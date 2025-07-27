@@ -1,6 +1,7 @@
 import os
 import subprocess
 import logging
+import shutil
 from typing import List, Optional
 
 from base_executor import BaseLanguageUtils
@@ -60,25 +61,45 @@ func main() {{
         return self.prepare_codebase(wrapped_code)
     
     def run_validation(self, code_path: str) -> Result:
-        """Run gofmt to fix formatting and go vet to check for errors."""
+        """Run goimports to fix formatting/imports and go vet to check for errors."""
         errors = []
         
-        # First run gofmt -w to automatically fix formatting
-        try:
-            result = subprocess.run(
-                ["gofmt", "-w", "main.go"],
-                cwd=code_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            
-            # gofmt -w doesn't produce output on success, only on error
-            if result.stderr:
-                errors.append(f"gofmt error: {result.stderr}")
-        except subprocess.SubprocessError as e:
-            logging.error("Error during gofmt fix: %s", e)
-            errors.append(f"gofmt error: {str(e)}")
+        # First check if goimports is available, fall back to gofmt if not
+        goimports_available = shutil.which("goimports") is not None
+        
+        if goimports_available:
+            # Run goimports -w to fix formatting and organize imports
+            try:
+                result = subprocess.run(
+                    ["goimports", "-w", "main.go"],
+                    cwd=code_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                
+                # goimports -w doesn't produce output on success, only on error
+                if result.stderr:
+                    errors.append(f"goimports error: {result.stderr}")
+            except subprocess.SubprocessError as e:
+                logging.error("Error during goimports fix: %s", e)
+                errors.append(f"goimports error: {str(e)}")
+        else:
+            # Fall back to gofmt if goimports not available
+            try:
+                result = subprocess.run(
+                    ["gofmt", "-w", "main.go"],
+                    cwd=code_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                
+                if result.stderr:
+                    errors.append(f"gofmt error: {result.stderr}")
+            except subprocess.SubprocessError as e:
+                logging.error("Error during gofmt fix: %s", e)
+                errors.append(f"gofmt error: {str(e)}")
         
         # Then run go vet for static analysis
         try:

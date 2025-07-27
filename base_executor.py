@@ -190,6 +190,18 @@ class BaseLanguageUtils(ABC):
         Can be overridden for language-specific handling.
         """
         return self.prepare_codebase(code)
+    
+    def get_mutated_code(self, code_path: str) -> str:
+        """
+        Read the mutated code from the prepared codebase.
+        """
+        try:
+            main_file_path = os.path.join(code_path, self.main_file)
+            with open(main_file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logging.error(f"Failed to read mutated code: {e}")
+            return ""
 
 
 # Common task execution functions that use the language utilities
@@ -213,10 +225,15 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(0, 0),
+            mutated_code="",
         )
     code, response, prompt_tokens, completion_tokens = r
     
     code_path = utils.prepare_codebase(code)
+    
+    # Read the mutated code from the file
+    mutated_code = utils.get_mutated_code(code_path) if code_path else ""
+    
     if not code_path:
         return TaskResult(
             run=run,
@@ -227,6 +244,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Run validation
@@ -241,6 +259,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Build if needed
@@ -255,6 +274,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Run the server
@@ -276,6 +296,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Wait for server to be ready
@@ -290,6 +311,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Make HTTP request
@@ -307,6 +329,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     finally:
         process_manager.terminate()
@@ -323,6 +346,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output=response_text,
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     elif isinstance(task.expected_output, dict):
         response_json = http_response.json()
@@ -335,6 +359,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output=json.dumps(response_json),
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     else:
         return TaskResult(
@@ -346,6 +371,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             output="",
             expected_output=str(task.expected_output),
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
 
 
@@ -367,11 +393,15 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             output="",
             expected_output=task.expected_output,
             tokens=(0, 0),
+            mutated_code="",
         )
     code, response, prompt_tokens, completion_tokens = r
     
     # Use the prepare_codebase_for_call method (which may be overridden)
     code_path = utils.prepare_codebase_for_call(code, task.input_contents)
+    
+    # Read the mutated code from the file
+    mutated_code = utils.get_mutated_code(code_path) if code_path else ""
     
     if not code_path:
         return TaskResult(
@@ -383,6 +413,7 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Run validation
@@ -397,6 +428,7 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Build if needed
@@ -411,6 +443,7 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Run the script
@@ -425,6 +458,7 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
             output="",
             expected_output=task.expected_output,
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Compare output
@@ -449,6 +483,7 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
         output=actual_output,
         expected_output=expected,
         tokens=(prompt_tokens, completion_tokens),
+        mutated_code=mutated_code,
     )
 
 
@@ -470,10 +505,15 @@ def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguage
             output="",
             expected_output="Code should validate successfully",
             tokens=(0, 0),
+            mutated_code="",
         )
     code, response, prompt_tokens, completion_tokens = r
     
     code_path = utils.prepare_codebase(code)
+    
+    # Read the mutated code from the file
+    mutated_code = utils.get_mutated_code(code_path) if code_path else ""
+    
     if not code_path:
         return TaskResult(
             run=run,
@@ -484,6 +524,7 @@ def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguage
             output="",
             expected_output="Code should validate successfully",
             tokens=(prompt_tokens, completion_tokens),
+            mutated_code=mutated_code,
         )
     
     # Run validation
@@ -498,6 +539,7 @@ def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguage
         output=result.output or "",
         expected_output="Code should validate successfully",
         tokens=(prompt_tokens, completion_tokens),
+        mutated_code=mutated_code,
     )
 
 
@@ -525,6 +567,7 @@ def exec_contains_common(task: TaskContains, model: str, run: int, utils: BaseLa
             output="",
             expected_output="",
             tokens=(0, 0),
+            mutated_code="",
         )
     
     # Check if response contains expected matches
@@ -551,4 +594,5 @@ def exec_contains_common(task: TaskContains, model: str, run: int, utils: BaseLa
             }
         ),
         tokens=(prompt_tokens, completion_tokens),
+        mutated_code="",
     )

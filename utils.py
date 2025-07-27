@@ -30,6 +30,7 @@ class TaskResult:
     result: Result
     response: str
     code: str
+    mutated_code: str  # Code after language-specific mutations
     output: str
     expected_output: str
     errors: List[str]
@@ -45,11 +46,13 @@ class TaskResult:
         output: str,
         expected_output: str | dict[str, Any] | list[Any],
         tokens: Tuple[int, int],
+        mutated_code: str = "",
     ):
         self.run = run
         self.result = Result(success, errors)
         self.response = response
         self.code = code
+        self.mutated_code = mutated_code
         self.output = output
         self.errors = errors
         self.tokens = tokens

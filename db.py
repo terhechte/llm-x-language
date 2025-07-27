@@ -28,6 +28,7 @@ class TestResult:
     cost: str
     duration: float
     is_lang_specific: bool
+    mutated_code: str = ""  # Code after language-specific mutations
 
     @classmethod
     def from_dict(cls, data: dict) -> "TestResult":
@@ -115,6 +116,7 @@ class ResultDB:
         cost: Decimal,
         duration: float,
         is_lang_specific: bool,
+        mutated_code: str = "",
     ) -> None:
         """Add a new test result to the database"""
         test_result = TestResult(
@@ -133,6 +135,7 @@ class ResultDB:
             cost=str(cost),
             duration=duration,
             is_lang_specific=is_lang_specific,
+            mutated_code=mutated_code,
         )
         self.results.append(test_result)
         self.save_db()

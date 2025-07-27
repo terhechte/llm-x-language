@@ -80,6 +80,7 @@ def execute_all_tasks(
             cost=cost,
             duration=duration,
             is_lang_specific=task.is_lang_specific,
+            mutated_code=result.mutated_code,
         )
     return total_cost
 
@@ -98,11 +99,11 @@ def main():
     setup_logging()
     multi_runs = False
     languages = [
-        # Language.SWIFT,
-        # Language.RUST,
-        # Language.TYPESCRIPT,
-        # Language.PYTHON,
-        # Language.PHP,
+        Language.SWIFT,
+        Language.RUST,
+        Language.TYPESCRIPT,
+        Language.PYTHON,
+        Language.PHP,
         Language.GO,
         Language.LUA,
         Language.KOTLIN,
@@ -174,7 +175,11 @@ def main():
         "openrouter/mistralai/mistral-small-24b-instruct-2501",
     ]
     models = [
-        "openrouter/mistralai/devstral-small",
+        # "openrouter/mistralai/devstral-small",
+        # "openrouter/qwen/qwen3-coder",
+        # "openrouter/qwen/qwen3-235b-a22b-2507",
+        # "openrouter/moonshotai/kimi-k2",
+        "openrouter/google/gemini-2.5-flash-lite"
     ]
     #    | Model                             | Run | Success | Failure |
     # |-----------------------------------|--------|---------|----------|

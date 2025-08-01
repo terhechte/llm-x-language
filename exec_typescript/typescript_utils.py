@@ -10,11 +10,12 @@ from utils import Result
 class TypeScriptUtils(BaseLanguageUtils):
     """TypeScript-specific language utilities."""
     
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="TypeScript",
             template_name="typescript_container",
-            main_file="src/index.ts"
+            main_file="src/index.ts",
+            use_docker=use_docker
         )
     
     def get_language_aliases(self) -> List[str]:
@@ -53,7 +54,8 @@ class TypeScriptUtils(BaseLanguageUtils):
     
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for TypeScript."""
-        return ["pnpm", "run", "build"]
+        # Clean dist folder before build to avoid stale artifacts
+        return ["sh", "-c", "rm -rf dist && pnpm run build"]
     
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract TypeScript-specific build errors."""
@@ -111,12 +113,26 @@ class TypeScriptUtils(BaseLanguageUtils):
         """
         Prepare TypeScript code for TaskCall execution by wrapping it with input handling.
         """
-        # For TypeScript, we need to add code to parse input and call the function
+        # TypeScript/JavaScript supports template literals with backticks
+        # If input contains backticks, use regular strings with proper escaping
+        if '`' in input_contents:
+            # Escape for JavaScript string literal
+            escaped_input = (input_contents
+                .replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace('\n', '\\n')
+                .replace('\r', '\\r')
+                .replace('\t', '\\t'))
+            input_literal = f'"{escaped_input}"'
+        else:
+            # Use template literal for simpler cases
+            input_literal = f'`{input_contents}`'
+        
         wrapped_code = f"""
 {code.strip()}
 
 // Main execution
-const input = `{input_contents}`;
+const input = {input_literal};
 const result = example(input);
 console.log(result);
 """

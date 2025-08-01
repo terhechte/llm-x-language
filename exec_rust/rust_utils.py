@@ -11,18 +11,19 @@ from utils import Result
 
 class RustUtils(BaseLanguageUtils):
     """Rust-specific language utilities."""
-    
-    def __init__(self):
+
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Rust",
             template_name="rust_container",
-            main_file="src/main.rs"
+            main_file="src/main.rs",
+            use_docker=use_docker,
         )
-    
+
     def get_language_aliases(self) -> List[str]:
         """Return Rust language aliases."""
         return ["rust", "rs"]
-    
+
     def extract_language_code(self, code_blocks: List[Tuple[str, str]]) -> str:
         """
         Extract Rust code blocks with special handling for duplicate main functions.
@@ -35,16 +36,16 @@ class RustUtils(BaseLanguageUtils):
                 code_blocks[0][0],
                 self.remove_rust_main_function(code_blocks[0][1]),
             )
-        
+
         # Extract matching code blocks
         aliases = self.get_language_aliases()
         matching_code = []
         for lang, code in code_blocks:
             if lang.lower() in aliases:
                 matching_code.append(code)
-        
+
         return "\n".join(matching_code)
-    
+
     def run_validation(self, code_path: str) -> Result:
         """Run cargo check for code validation."""
         errors = []
@@ -73,22 +74,23 @@ class RustUtils(BaseLanguageUtils):
         except (subprocess.SubprocessError, json.JSONDecodeError) as e:
             logging.error("Error during cargo check: %s", e)
             return Result(success=False, errors=[str(e)])
-    
+
     def get_run_command(self) -> List[str]:
         """Get command to run Rust code."""
         return ["cargo", "run"]
-    
+
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Rust."""
-        return ["cargo", "build"]
-    
+        # Clean before build to ensure no stale cache
+        return ["sh", "-c", "cargo clean && cargo build"]
+
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract Rust-specific build errors."""
         errors = []
         if stderr and ("error:" in stderr or "error[" in stderr):
             errors.append(stderr)
         return errors if errors else ["Build failed"]
-    
+
     def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract Rust-specific runtime errors."""
         if stderr:
@@ -99,7 +101,7 @@ class RustUtils(BaseLanguageUtils):
             ):
                 return [stderr]
         return ["Runtime error occurred"]
-    
+
     def run_script(self, code_path: str, timeout: int = 60) -> Result:
         """
         Runs the Rust project and returns its output.
@@ -128,27 +130,42 @@ class RustUtils(BaseLanguageUtils):
 
         except subprocess.TimeoutExpired:
             logging.error(f"Rust project execution timed out after {timeout} seconds")
-            return Result(success=False, errors=[f"Execution timed out after {timeout} seconds"])
+            return Result(
+                success=False, errors=[f"Execution timed out after {timeout} seconds"]
+            )
         except subprocess.SubprocessError as e:
             logging.error("Error running Rust project: %s", e)
             return Result(success=False, errors=[str(e)])
-    
+
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """
         Prepare Rust code for TaskCall execution by wrapping it with input handling.
         """
-        # For Rust, we need to add code to parse input and call the function
+        # For Rust, use raw string literals with enough # to avoid conflicts
+        # Count the max consecutive # in the input and use more
+        max_hashes = 0
+        if '"#' in input_contents:
+            import re
+
+            matches = re.findall(r"#+", input_contents)
+            if matches:
+                max_hashes = max(len(m) for m in matches)
+
+        # Use one more # than found in the input
+        hash_count = max_hashes + 1
+        hashes = "#" * hash_count
+
         wrapped_code = f"""
 {code.strip()}
 
 fn main() {{
-    let input = r#"{input_contents}"#;
-    let result = example(input);
+    let input = r{hashes}"{input_contents}"{hashes};
+    let result = example(input.to_string());
     println!("{{}}", result);
 }}
 """
         return self.prepare_codebase(wrapped_code)
-    
+
     def remove_rust_main_function(self, code: str) -> str:
         """
         Removes any Rust 'fn main' function from the provided code string, even if

@@ -10,11 +10,12 @@ from utils import Result, find_code_blocks_with_language
 class LuaUtils(BaseLanguageUtils):
     """Lua-specific language utilities."""
     
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Lua",
             template_name="lua_container",
-            main_file="main.lua"
+            main_file="main.lua",
+            use_docker=use_docker
         )
     
     def get_language_aliases(self) -> List[str]:
@@ -84,12 +85,27 @@ class LuaUtils(BaseLanguageUtils):
         """
         Prepare Lua code for TaskCall execution by wrapping it with input handling.
         """
+        # For Lua, use [[ ]] for multi-line strings or escape quotes
+        # Check if input contains ]] which would break [[ ]] syntax
+        if ']]' in input_contents:
+            # Use regular string with escaping
+            escaped_input = (input_contents
+                .replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace('\n', '\\n')
+                .replace('\r', '\\r')
+                .replace('\t', '\\t'))
+            input_literal = f'"{escaped_input}"'
+        else:
+            # Use [[ ]] for cleaner multi-line strings
+            input_literal = f'[[{input_contents}]]'
+        
         # For Lua, we need to add code to parse input and call the function
         wrapped_code = f"""
 {code.strip()}
 
 -- Main execution
-local input = "{input_contents}"
+local input = {input_literal}
 local result = example(input)
 print(result)
 """

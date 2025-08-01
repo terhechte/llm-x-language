@@ -12,11 +12,12 @@ from utils import Result
 class KotlinUtils(BaseLanguageUtils):
     """Kotlin Native specific language utilities."""
 
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Kotlin", 
             template_name="kotlin_container", 
-            main_file="src/nativeMain/kotlin/main.kt"
+            main_file="src/nativeMain/kotlin/main.kt",
+            use_docker=use_docker
         )
 
     def get_language_aliases(self) -> List[str]:
@@ -63,7 +64,21 @@ class KotlinUtils(BaseLanguageUtils):
             logging.warning(f"Kotlin code does not contain 'fun example': {code[:200]}...")
         
         # Escape the input contents for Kotlin string literal
-        escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+        # Kotlin supports triple-quoted strings for multi-line content
+        if '"""' in input_contents:
+            # Fall back to regular string escaping if triple quotes are present
+            escaped_input = (input_contents
+                .replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace('\n', '\\n')
+                .replace('\r', '\\r')
+                .replace('\t', '\\t')
+                .replace('\b', '\\b')
+                .replace('\f', '\\f'))
+            input_literal = f'"{escaped_input}"'
+        else:
+            # Use triple-quoted strings for cleaner multi-line support
+            input_literal = f'"""{input_contents}"""'
         
         # Check if code already has imports
         has_imports = any(imp in code for imp in ["import ", "package "])
@@ -73,7 +88,7 @@ class KotlinUtils(BaseLanguageUtils):
             wrapped_code = f"""{code.strip()}
 
 fun main() {{
-    val input = "{escaped_input}"
+    val input = {input_literal}
     val result = example(input)
     println(result)
 }}
@@ -98,7 +113,7 @@ import io.ktor.http.*
 {code.strip()}
 
 fun main() {{
-    val input = "{escaped_input}"
+    val input = {input_literal}
     val result = example(input)
     println(result)
 }}
@@ -168,8 +183,15 @@ fun main() {{
             # Determine OS-specific gradlew command
             gradlew_cmd = "./gradlew" if os.name != 'nt' else "gradlew.bat"
             
-            # Skip clean to avoid potential issues with file timing
-            # Previous builds will be overwritten anyway
+            # Clean before build to ensure no stale artifacts
+            clean_result = subprocess.run(
+                [gradlew_cmd, "clean", "--console=plain"],
+                cwd=code_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                shell=(os.name == 'nt')  # Use shell on Windows
+            )
             
             # Build the native executable
             result = subprocess.run(

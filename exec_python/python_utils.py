@@ -27,13 +27,39 @@ class PythonUtils(BaseLanguageUtils):
         """
         Prepare Python code for TaskCall execution by wrapping it with input handling.
         """
-        wrapped_code = f"""
+        # Use triple quotes for multi-line string support
+        # If input contains triple quotes, use a different quote style
+        if '"""' in input_contents and "'''" in input_contents:
+            # Both types of triple quotes present, need to escape
+            escaped_input = input_contents.replace('\\', '\\\\').replace("'''", "\\'\\'\\'")
+            wrapped_code = f"""
 {code.strip()}
 
 if __name__ == "__main__":
     import sys
-    print(example(r'''{input_contents}'''))
+    input_str = r'''{escaped_input}'''
+    print(example(input_str))
 """
+        elif '"""' in input_contents:
+            # Use triple single quotes
+            wrapped_code = f"""
+{code.strip()}
+
+if __name__ == "__main__":
+    import sys
+    input_str = '''{input_contents}'''
+    print(example(input_str))
+"""
+        else:
+            # Use triple double quotes (default)
+            wrapped_code = f'''
+{code.strip()}
+
+if __name__ == "__main__":
+    import sys
+    input_str = """{input_contents}"""
+    print(example(input_str))
+'''
         return self.prepare_codebase(wrapped_code)
     
     def run_validation(self, code_path: str) -> Result:

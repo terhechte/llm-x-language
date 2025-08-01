@@ -10,11 +10,12 @@ from utils import Result
 class PHPUtils(BaseLanguageUtils):
     """PHP-specific language utilities."""
     
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="PHP",
             template_name="php_container",
-            main_file="main.php"
+            main_file="main.php",
+            use_docker=use_docker
         )
     
     def get_language_aliases(self) -> List[str]:
@@ -61,12 +62,20 @@ class PHPUtils(BaseLanguageUtils):
         """
         Prepare PHP code for TaskCall execution by wrapping it with input handling.
         """
+        # For PHP, escape single quotes and backslashes
+        escaped_input = (input_contents
+            .replace('\\', '\\\\')
+            .replace("'", "\\'")
+            .replace('\n', '\\n')
+            .replace('\r', '\\r')
+            .replace('\t', '\\t'))
+        
         # For PHP, we need to add code to parse input and call the function
         wrapped_code = f"""<?php
 {code.strip().replace('<?php', '').replace('?>', '')}
 
 // Main execution
-$input = '{input_contents}';
+$input = '{escaped_input}';
 $result = example($input);
 echo $result;
 ?>"""

@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import shutil
+import re
 from typing import List, Optional
 
 from base_executor import BaseLanguageUtils
@@ -11,51 +12,98 @@ from utils import Result
 class GoUtils(BaseLanguageUtils):
     """Go-specific language utilities."""
     
-    def __init__(self):
+    def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Go",
             template_name="go_container",
-            main_file="main.go"
+            main_file="main.go",
+            use_docker=use_docker
         )
     
     def get_language_aliases(self) -> List[str]:
         """Return Go language aliases."""
         return ["go", "golang"]
     
+    def _ensure_fmt_import(self, code: str) -> str:
+        """
+        Ensure fmt package is imported if we're using fmt.Println.
+        """
+        # Check if we're using fmt.Println
+        uses_fmt = 'fmt.Print' in code or 'fmt.Sprintf' in code
+        
+        # Check if fmt is already imported
+        import_pattern = re.compile(r'import\s*\(([^)]*)\)|import\s+"fmt"')
+        match = import_pattern.search(code)
+        
+        if uses_fmt and not match:
+            # Need to add fmt import
+            # Check if there's already an import statement
+            if 'import' in code:
+                # Add fmt to existing imports
+                single_import = re.search(r'import\s+"([^"]+)"', code)
+                if single_import:
+                    # Convert single import to multi-import
+                    old_import = single_import.group(0)
+                    new_import = f'import (\n    "fmt"\n    "{single_import.group(1)}"\n)'
+                    code = code.replace(old_import, new_import)
+            else:
+                # No imports at all, add after package declaration
+                code = code.replace('package main', 'package main\n\nimport "fmt"', 1)
+        elif uses_fmt and match:
+            # Check if fmt is in multi-import block
+            if match.group(1) and '"fmt"' not in match.group(0):
+                # Add fmt to existing import block
+                import_block = match.group(0)
+                # Find the opening parenthesis and add fmt after it
+                new_import_block = import_block.replace('(', '(\n    "fmt"', 1)
+                code = code.replace(import_block, new_import_block)
+        
+        return code
+    
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """
         Prepare Go code for TaskCall execution by wrapping it with input handling.
         """
+        # If input contains backticks, we need to use regular quotes and escape
+        if '`' in input_contents:
+            # Escape backslashes and quotes for Go string literal
+            escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+            input_literal = f'"{escaped_input}"'
+        else:
+            # Use raw string literal (backticks) for simpler cases
+            input_literal = f'`{input_contents}`'
+        
         # Check if code already has package declaration
         if "package main" in code:
             # If it has package main, check for main function
             if "func main()" in code:
-                # Code has main function, use as-is
+                # Code has main function, use as-is but ensure fmt import
+                code = self._ensure_fmt_import(code)
                 return self.prepare_codebase(code)
             else:
-                # The AI should provide all necessary imports
-                # We just add the main function
+                # Add the main function
                 wrapped_code = f"""{code.strip()}
 
 func main() {{
-    input := `{input_contents}`
+    input := {input_literal}
     result := example(input)
-    // The AI should have imported fmt if it needs println
-    // Otherwise it might use a different output method
-    println(result)
+    fmt.Println(result)
 }}
 """
+                # Ensure fmt is imported since we're using fmt.Println
+                wrapped_code = self._ensure_fmt_import(wrapped_code)
         else:
-            # No package declaration - the AI should provide complete code
-            # Let's add minimal wrapper
+            # No package declaration - add complete wrapper
             wrapped_code = f"""package main
+
+import "fmt"
 
 {code.strip()}
 
 func main() {{
-    input := `{input_contents}`
+    input := {input_literal}
     result := example(input)
-    println(result)
+    fmt.Println(result)
 }}
 """
         return self.prepare_codebase(wrapped_code)
@@ -129,7 +177,8 @@ func main() {{
     
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Go."""
-        return ["go", "build", "-o", "main", "main.go"]
+        # Clean before build to ensure no stale cache
+        return ["sh", "-c", "rm -f main go_container && go build -o main main.go"]
     
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract Go-specific build errors."""

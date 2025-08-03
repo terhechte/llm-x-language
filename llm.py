@@ -14,6 +14,10 @@ from provider.inception import (
     request as request_inception,
     model_info as model_info_inception,
 )
+from provider.mock import (
+    request as request_mock,
+    model_info as model_info_mock,
+)
 
 from provider.types import ModelInfo
 
@@ -50,6 +54,14 @@ def replace_inception_model(model: str) -> str:
     return model.replace("inception/", "")
 
 
+def is_mock_model(model: str) -> bool:
+    return model.startswith("mock/")
+
+
+def replace_mock_model(model: str) -> str:
+    return model.replace("mock/", "")
+
+
 def request(query: str, model: str, language: str) -> tuple[str, int, int]:
     if is_lmstudio_model(model):
         result = request_lmstudio(query, replace_lmstudio_model(model), language)
@@ -62,6 +74,8 @@ def request(query: str, model: str, language: str) -> tuple[str, int, int]:
         return request_together_ai(query, replace_together_ai_model(model), language)
     elif is_inception_model(model):
         return request_inception(query, replace_inception_model(model), language)
+    elif is_mock_model(model):
+        return request_mock(query, replace_mock_model(model), language)
     else:
         raise ValueError(f"Unknown model: {model}")
 
@@ -79,11 +93,15 @@ def model_info(models: list[str]) -> dict[str, ModelInfo]:
     inception_models = [
         (m, replace_inception_model(m)) for m in models if is_inception_model(m)
     ]
+    mock_models = [
+        (m, replace_mock_model(m)) for m in models if is_mock_model(m)
+    ]
     return {
         **model_info_openrouter(openrouter_models),
         **model_info_lmstudio(lmstudio_models),
         **model_info_together_ai(together_ai_models),
         **model_info_inception(inception_models),
+        **model_info_mock(mock_models),
     }
 
 

@@ -152,8 +152,46 @@ fun main() {{
         """Prepare Kotlin code for TaskRun execution (HTTP server)."""
         return self.prepare_codebase(code)
 
+    def prepare_codebase(self, code: str) -> str:
+        """
+        Override prepare_codebase to ensure Kotlin code always has a main function.
+        This is needed because Kotlin Native requires a main function to compile.
+        """
+        # Log the incoming code for debugging
+        logging.debug(f"Kotlin prepare_codebase received code: {repr(code)}")
+        
+        # Check if code already has a main function
+        if "fun main" in code:
+            # Code already has main, use parent's prepare_codebase
+            return super().prepare_codebase(code)
+        
+        # Add imports and empty main function for type checking
+        wrapped_code = f"""import kotlin.text.*
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
+import kotlinx.datetime.*
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.server.application.*
+import io.ktor.server.engine.*
+import io.ktor.server.cio.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.http.*
+
+{code.strip()}
+
+fun main() {{
+    // Empty main function for type checking
+}}
+"""
+        return super().prepare_codebase(wrapped_code)
+
     def prepare_codebase_for_check(self, code: str, function_call: str) -> str:
         """Prepare Kotlin code for TaskCheck execution."""
+        # This method is not currently used, but keeping for compatibility
         wrapped_code = f"""import kotlin.text.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*

@@ -137,6 +137,25 @@ class RustUtils(BaseLanguageUtils):
             logging.error("Error running Rust project: %s", e)
             return Result(success=False, errors=[str(e)])
 
+    def prepare_codebase(self, code: str) -> str:
+        """
+        Override prepare_codebase to ensure Rust code always has a main function.
+        This is needed because Rust requires a main function to compile.
+        """
+        # Check if code already has a main function
+        if "fn main" in code:
+            # Code already has main, use parent's prepare_codebase
+            return super().prepare_codebase(code)
+        
+        # Add empty main function for type checking
+        wrapped_code = f"""{code.strip()}
+
+fn main() {{
+    // Empty main function for type checking
+}}
+"""
+        return super().prepare_codebase(wrapped_code)
+
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """
         Prepare Rust code for TaskCall execution by wrapping it with input handling.

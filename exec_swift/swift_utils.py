@@ -88,7 +88,7 @@ class SwiftUtils(BaseLanguageUtils):
 
     def get_run_command(self) -> List[str]:
         """Get command to run Swift code."""
-        return ["swift", "run"]
+        return ["swift", "run", "--skip-build"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Swift."""

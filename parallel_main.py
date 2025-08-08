@@ -79,13 +79,6 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1,
-        help="Number of tasks per worker batch (default: 1)",
-    )
-
-    parser.add_argument(
         "--rate-limit",
         type=int,
         default=30,
@@ -112,9 +105,19 @@ def get_models(specific_model: Optional[str] = None) -> List[str]:
         return [specific_model]
 
     return [
-        "openrouter/mistralai/devstral-small",
-        # "openrouter/qwen/qwen3-coder",
-        # "openrouter/google/gemini-2.5-flash-lite",
+        "openrouter/mistralai/devstral-medium",
+        "openrouter/google/gemini-2.5-pro",
+        "openrouter/qwen/qwen3-30b-a3b-instruct-2507",
+        "openrouter/z-ai/glm-4.5",
+        "openrouter/z-ai/glm-4.5-air",
+        "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+        "openrouter/qwen/qwen3-coder",
+        "openrouter/qwen/qwen3-235b-a22b-2507",
+        "openrouter/moonshotai/kimi-k2",
+        "openrouter/anthropic/claude-sonnet-4",
+        # "openrouter/mistralai/devstral-small",
+        "openrouter/qwen/qwen3-coder",
+        "openrouter/google/gemini-2.5-flash-lite",
     ]
 
     # Default model list (same as main.py)
@@ -234,8 +237,7 @@ def main():
     # Log configuration
     logging.info(f"Models to test: {len(models)}")
     logging.info(f"Languages to test: {[l.value for l in languages]}")
-    logging.info(f"Worker processes: {args.workers}")
-    logging.info(f"Batch size: {args.batch_size}")
+    logging.info(f"Worker processes: {args.workers} (max 1 per language)")
     logging.info(f"Rate limit: {args.rate_limit} calls/minute")
     logging.info(f"Skip language-specific: {skip_lang_specific}")
     if args.task_number:
@@ -279,7 +281,6 @@ def main():
             skip_lang_specific=skip_lang_specific,
             limit=args.task_number,
             worker_processes=args.workers,
-            batch_size=args.batch_size,
             llm_rate_limit=args.rate_limit,
         )
     except KeyboardInterrupt:

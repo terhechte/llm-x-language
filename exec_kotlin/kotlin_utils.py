@@ -10,13 +10,13 @@ from utils import Result
 
 
 class KotlinUtils(BaseLanguageUtils):
-    """Kotlin Native specific language utilities."""
+    """Kotlin JVM specific language utilities."""
 
     def __init__(self, use_docker: bool = False):
         super().__init__(
             language="Kotlin", 
             template_name="kotlin_container", 
-            main_file="src/nativeMain/kotlin/main.kt",
+            main_file="src/main/kotlin/Main.kt",
             use_docker=use_docker
         )
 
@@ -216,7 +216,7 @@ fun main() {{
         return self.prepare_codebase(wrapped_code)
 
     def run_validation(self, code_path: str) -> Result:
-        """Build Kotlin Native project using Gradle."""
+        """Build Kotlin JVM project using Gradle."""
         try:
             # Determine OS-specific gradlew command
             gradlew_cmd = "./gradlew" if os.name != 'nt' else "gradlew.bat"
@@ -231,9 +231,9 @@ fun main() {{
                 shell=(os.name == 'nt')  # Use shell on Windows
             )
             
-            # Build the native executable
+            # Build the JVM application
             result = subprocess.run(
-                [gradlew_cmd, "nativeBinaries", "--console=plain"],
+                [gradlew_cmd, "build", "--console=plain"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,
@@ -251,20 +251,19 @@ fun main() {{
             return Result(success=False, errors=[str(e)])
 
     def get_run_command(self) -> List[str]:
-        """Build then run the Kotlin Native binary in the same container."""
+        """Build then run the Kotlin JVM application in the same container."""
         return [
             "sh",
             "-lc",
-            "./gradlew -Pkotlin.native.distribution.downloadFromMavenCentral=true -Porg.jetbrains.kotlin.native.distribution.downloadFromMavenCentral=true nativeBinaries --console=plain && ./build/bin/native/releaseExecutable/main.kexe",
+            "./gradlew jar --console=plain --quiet --no-daemon >/dev/null 2>&1 && /usr/local/openjdk-17/bin/java -jar build/libs/kotlin_container.jar",
         ]
 
     def get_build_command(self) -> List[str] | None:
-        """Build Kotlin Native binary inside the container."""
-        # Build native binaries using Gradle; fetch Kotlin/Native toolchain from Maven Central if needed
+        """Build Kotlin JVM application inside the container."""
         return [
             "sh",
             "-lc",
-            "./gradlew -Pkotlin.native.distribution.downloadFromMavenCentral=true -Porg.jetbrains.kotlin.native.distribution.downloadFromMavenCentral=true nativeBinaries --console=plain",
+            "./gradlew jar --console=plain --quiet --no-daemon",
         ]
 
 

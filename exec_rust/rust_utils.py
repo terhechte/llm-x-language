@@ -80,9 +80,12 @@ class RustUtils(BaseLanguageUtils):
         return ["cargo", "run"]
 
     def get_build_command(self) -> Optional[List[str]]:
-        """Get the build command for Rust."""
-        # Clean before build to ensure no stale cache
-        return ["sh", "-c", "cargo clean && cargo build"]
+        """Get the build command for Rust.
+
+        Skip explicit pre-build; `cargo run -q` compiles as needed. This
+        avoids redundant builds and reduces timeouts under parallel load.
+        """
+        return None
 
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract Rust-specific build errors."""

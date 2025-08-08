@@ -50,7 +50,8 @@ class TypeScriptUtils(BaseLanguageUtils):
     
     def get_run_command(self) -> List[str]:
         """Get command to run TypeScript code."""
-        return ["pnpm", "dev"]
+        # Use pnpm exec to avoid lifecycle banner noise in stdout
+        return ["pnpm", "-s", "exec", "tsx", "src/index.ts"]
     
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for TypeScript."""

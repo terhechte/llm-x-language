@@ -69,7 +69,13 @@ class LuaUtils(BaseLanguageUtils):
     
     def get_run_command(self) -> List[str]:
         """Get command to run Lua code."""
-        return ["./run.sh"]
+        # Use /bin/sh to avoid requiring bash in alpine base image.
+        # Set up LuaRocks paths if available, then execute main.lua.
+        return [
+            "sh",
+            "-lc",
+            "if command -v luarocks >/dev/null 2>&1; then eval $(luarocks path); fi; lua main.lua",
+        ]
     
     def get_build_command(self) -> Optional[List[str]]:
         """Lua doesn't need a build step."""

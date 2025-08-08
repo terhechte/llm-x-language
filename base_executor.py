@@ -13,7 +13,16 @@ import requests
 from llm import request
 from utils import find_code_blocks_with_language, Result, TaskResult, ProcessManager, wait_for_server_ready, are_json_values_equal, are_string_values_equal, ContainsMatch
 from task import TaskCall, TaskRun, TaskCheck, TaskContains
-from docker_utils import port_manager, build_docker_run_command
+import tempfile
+from docker_utils import (
+    port_manager,
+    build_docker_create_command,
+    docker_create,
+    docker_cp,
+    docker_start_attach,
+    docker_stop_rm,
+    get_docker_network_mode,
+)
 
 
 class BaseLanguageUtils(ABC):
@@ -38,11 +47,29 @@ class BaseLanguageUtils(ABC):
         self.docker_image = f"llm-benchmark/{language.lower()}"
         self.allocated_port = None
     
+    def _use_docker(self) -> bool:
+        """Evaluate Docker mode on demand to respect late env changes."""
+        return self.use_docker or os.environ.get('LLM_BENCHMARK_USE_DOCKER', '').lower() == 'true'
+
     def prepare_codebase(self, code: str) -> str:
         """
         Prepares the codebase by writing the code to the main file in the template directory.
         """
         try:
+            # In Docker mode, avoid writing into the shared dojo/template folder,
+            # which can be overwritten by parallel runs. Instead, write into a
+            # per-run staging directory and later copy that into the container.
+            if self._use_docker():
+                staging_dir = tempfile.mkdtemp(prefix=f"{self.template_name}-")
+                main_file_path = os.path.join(staging_dir, self.main_file)
+                os.makedirs(os.path.dirname(main_file_path), exist_ok=True)
+                with open(main_file_path, "w", encoding="utf-8") as f:
+                    f.write(code)
+                    f.flush()
+                    os.fsync(f.fileno())
+                return staging_dir
+
+            # Non-Docker: keep previous behavior
             main_file_path = os.path.join(self.template_dest, self.main_file)
             os.makedirs(os.path.dirname(main_file_path), exist_ok=True)
             with open(main_file_path, "w", encoding="utf-8") as f:
@@ -104,7 +131,7 @@ class BaseLanguageUtils(ABC):
     
     def run_validation_wrapper(self, code_path: str) -> Result:
         """Wrapper that chooses between Docker and native validation."""
-        if self.use_docker:
+        if self._use_docker():
             return self.run_docker_validation(code_path)
         else:
             return self.run_validation(code_path)
@@ -148,7 +175,7 @@ class BaseLanguageUtils(ABC):
     
     def run_build_wrapper(self, code_path: str) -> Result:
         """Wrapper that chooses between Docker and native build."""
-        if self.use_docker:
+        if self._use_docker():
             return self.run_docker_build(code_path)
         else:
             return self.run_build(code_path)
@@ -197,7 +224,7 @@ class BaseLanguageUtils(ABC):
     
     def run_script_wrapper(self, code_path: str, timeout: int = 60, port: Optional[int] = None) -> Result:
         """Wrapper that chooses between Docker and native script execution."""
-        if self.use_docker:
+        if self._use_docker():
             return self.run_docker_script(code_path, timeout, port)
         else:
             return self.run_script(code_path, timeout)
@@ -209,26 +236,55 @@ class BaseLanguageUtils(ABC):
         """
         return [stderr] if stderr else ["Runtime error occurred"]
     
-    def get_docker_command(self, base_command: List[str], port: Optional[int] = None) -> List[str]:
+    def _create_and_stage_container(self, base_command: List[str], code_path: str, port: Optional[int] = None) -> str:
+        """Create a container, copy files into it, and return container id.
+
+        This avoids volume mounts and ensures per-run isolation.
         """
-        Build Docker command for executing code.
-        
-        Args:
-            base_command: The base command to run in the container
-            port: Optional port to expose for HTTP server tests
-            
-        Returns:
-            Complete docker run command
-        """
-        volume_mount = f"{os.path.abspath(self.template_dest)}:/app"
-        
-        return build_docker_run_command(
+        # Let Docker pick a unique name to avoid any potential collisions
+        container_name = None
+
+        # No special env for Rust: ensure build artifacts go to /app/target inside container
+        env_vars: Dict[str, str] = {}
+        # Language-specific environment to help toolchains
+        if self.language.lower() == "kotlin":
+            # Ensure Gradle sees the Maven Central flag for Kotlin/Native distribution
+            env_vars["ORG_GRADLE_PROJECT_kotlin.native.distribution.downloadFromMavenCentral"] = "true"
+            env_vars["ORG_GRADLE_PROJECT_org.jetbrains.kotlin.native.distribution.downloadFromMavenCentral"] = "true"
+
+        # Create container with desired command and networking
+        network_mode = get_docker_network_mode()
+        container_id = docker_create(
             image=self.docker_image,
-            volume_mount=volume_mount,
             command=base_command,
             port=port,
-            container_name=f"{self.language.lower()}-{os.getpid()}-{threading.get_ident()}"
+            network_mode=network_mode,
+            container_name=container_name,
+            env_vars=env_vars,
         )
+
+        # Copy staged contents into the container under /app preserving structure
+        # When copying directory contents, use `src_dir/.` so files land directly in /app
+        src_dir = code_path
+        dest_dir = f"{container_id}:/app/"
+        result = docker_cp(os.path.join(src_dir, "."), dest_dir)
+        if result.returncode != 0:
+            docker_stop_rm(container_id, force=True)
+            raise subprocess.SubprocessError(result.stderr.strip())
+
+        # Language-specific prebuilt artifacts (e.g., Rust target)
+        if self.language.lower() == "rust":
+            # If the host has a pre-warmed target directory, copy it in once
+            host_target = os.path.join(os.path.dirname(__file__), "dojo", "rust_container", "target")
+            if os.path.isdir(host_target):
+                # Copy the directory into the container's /app/target
+                target_dest = f"{container_id}:/app/"
+                result_t = docker_cp(host_target, target_dest)
+                if result_t.returncode != 0:
+                    # Not fatal; continue without prewarmed cache
+                    logging.debug("Failed to copy Rust target cache: %s", result_t.stderr)
+
+        return container_id
     
     def run_docker_validation(self, code_path: str) -> Result:
         """Run validation using Docker."""
@@ -243,14 +299,11 @@ class BaseLanguageUtils(ABC):
             return Result(success=True, errors=[])
         
         try:
-            docker_cmd = self.get_docker_command(build_cmd)
-            result = subprocess.run(
-                docker_cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,  # Longer timeout for Docker
-                check=False,
-            )
+            # Create container, copy code into it, then start and attach
+            container_id = self._create_and_stage_container(build_cmd, code_path)
+            result = docker_start_attach(container_id, timeout=120)
+            # Ensure container is removed
+            docker_stop_rm(container_id)
             
             if result.returncode != 0:
                 errors = self.extract_build_errors(result.stdout, result.stderr)
@@ -263,33 +316,44 @@ class BaseLanguageUtils(ABC):
             return Result(success=False, errors=[str(e)])
     
     def run_docker_script(self, code_path: str, timeout: int = 60, port: Optional[int] = None) -> Result:
-        """Run script using Docker."""
+        """Run script using Docker with copy-in isolation."""
         try:
             cmd = self.get_run_command()
-            docker_cmd = self.get_docker_command(cmd, port)
-            
-            result = subprocess.run(
-                docker_cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout + 10,  # Add buffer for Docker overhead
-                check=False,
-            )
-            
-            if result.stderr and result.returncode != 0:
+            container_id = self._create_and_stage_container(cmd, code_path, port)
+            result = docker_start_attach(container_id, timeout=timeout + 10)
+            docker_stop_rm(container_id)
+
+            if result.returncode != 0:
                 logging.debug("Docker Raw Err Output: %s", result.stderr)
                 errors = self.extract_runtime_errors(result.stdout, result.stderr)
                 return Result(success=False, errors=errors)
-            
+
             logging.debug("Docker Raw Output: %s", result.stdout)
             return Result(success=True, errors=[], output=result.stdout)
-            
+
         except subprocess.TimeoutExpired:
             logging.error(f"Docker {self.language} script execution timed out after {timeout} seconds")
             return Result(success=False, errors=[f"Docker execution timed out after {timeout} seconds"])
         except subprocess.SubprocessError as e:
             logging.error(f"Error running Docker {self.language} script: %s", e)
             return Result(success=False, errors=[str(e)])
+
+    def start_docker_server(self, code_path: str, port: int, process_manager: ProcessManager) -> None:
+        """Prepare a container, copy code in, and start it attached via ProcessManager.
+
+        Ensures that terminating the process stops and removes the container.
+        """
+        cmd = self.get_run_command()
+        container_id = self._create_and_stage_container(cmd, code_path, port)
+
+        # Build a wrapper that traps termination and cleans up the container.
+        wrapper = (
+            f"trap 'docker stop -t 0 {container_id} >/dev/null 2>&1; "
+            f"docker rm -f {container_id} >/dev/null 2>&1' TERM INT; "
+            f"docker start -a {container_id}"
+        )
+        # Start the wrapper as the managed process
+        process_manager.start_process(["bash", "-lc", wrapper])
     
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """
@@ -388,7 +452,7 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
         )
     
     # Handle Docker vs native execution for HTTP server
-    if utils.use_docker:
+    if utils._use_docker():
         # Allocate a port for Docker
         allocated_port = port_manager.allocate_port()
         if not allocated_port:
@@ -412,12 +476,13 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
         else:
             test_url = task.request  # No port in URL, use as-is
         
-        # Run server in Docker
+        # Run server in Docker using create/cp/start
         def run_docker_target():
-            cmd = utils.get_run_command()
-            docker_cmd = utils.get_docker_command(cmd, allocated_port)
-            process_manager.start_process(docker_cmd)
-        
+            try:
+                utils.start_docker_server(code_path, allocated_port, process_manager)
+            except Exception as e:
+                logging.error("Failed to start Docker server: %s", e)
+
         thread = threading.Thread(target=run_docker_target)
         thread.start()
     else:

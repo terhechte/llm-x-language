@@ -87,8 +87,11 @@ class SwiftUtils(BaseLanguageUtils):
             return Result(success=False, errors=[str(e)])
 
     def get_run_command(self) -> List[str]:
-        """Get command to run Swift code."""
-        return ["swift", "run", "--skip-build"]
+        """Get command to build and run Swift code in one container."""
+        # Avoid --skip-build because our Docker flow creates a fresh container
+        # for the run step; ensure we build before running to avoid the
+        # prebuilt "temp" binary from the image.
+        return ["swift", "run"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Swift."""
@@ -122,7 +125,7 @@ class SwiftUtils(BaseLanguageUtils):
 let input = """
 {input_contents}
 """
-let result = example(input: input)
+let result = example(input)
 print(result)
 '''
         return self.prepare_codebase(wrapped_code)

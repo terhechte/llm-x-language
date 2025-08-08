@@ -1,9 +1,16 @@
-"""Docker integration utilities for the benchmark framework."""
+"""Docker integration utilities for the benchmark framework.
+
+This module provides helpers to run containers in a way that avoids
+shared volume mounts between concurrent tests. Instead of `docker run` with
+`-v`, we create a container, copy code into it, and then start it. This
+prevents parallel runs from overwriting each other's files.
+"""
 
 import threading
 import socket
-from typing import Optional, Set
+from typing import Optional, Set, Dict, List
 import logging
+import subprocess
 
 
 class PortManager:
@@ -97,61 +104,90 @@ def get_docker_network_mode() -> str:
         return 'bridge'
 
 
-def build_docker_run_command(
+def build_docker_create_command(
     image: str,
-    volume_mount: str,
-    command: list,
+    command: List[str],
+    *,
     port: Optional[int] = None,
     network_mode: Optional[str] = None,
     container_name: Optional[str] = None,
-    env_vars: Optional[dict] = None,
-) -> list:
+    env_vars: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """Build a `docker create` command with the given parameters.
+
+    We use this instead of `docker run -v` to avoid mounting shared host
+    directories across parallel runs. Files are copied in after creation.
     """
-    Build a docker run command with the given parameters.
-    
-    Args:
-        image: Docker image name
-        volume_mount: Volume mount in format "host_path:container_path"
-        command: Command to run in the container
-        port: Optional port to expose
-        network_mode: Optional network mode (defaults to platform-specific)
-        container_name: Optional container name
-        env_vars: Optional environment variables
-        
-    Returns:
-        List of command arguments for subprocess
-    """
-    cmd = ["docker", "run", "--rm"]
-    
-    # Add container name if provided
+    # Note: `docker create` does not support --rm; handle cleanup manually.
+    cmd = ["docker", "create"]
+
     if container_name:
         cmd.extend(["--name", container_name])
-    
-    # Add volume mount
-    cmd.extend(["-v", volume_mount])
-    
-    # Add working directory
+
+    # Working directory is /app in all dojo images
     cmd.extend(["-w", "/app"])
-    
-    # Add network mode
+
+    # Determine network mode
     if network_mode is None:
         network_mode = get_docker_network_mode()
-    
-    if network_mode == 'host':
+
+    if network_mode == "host":
         cmd.extend(["--network", "host"])
     elif port:
-        # Only map ports in bridge mode
+        # Only map ports when using bridge mode
         cmd.extend(["-p", f"{port}:{port}"])
-    
-    # Add environment variables
+
+    # Environment variables
     if env_vars:
-        for key, value in env_vars.items():
-            cmd.extend(["-e", f"{key}={value}"])
-    
-    # Add image
+        for k, v in env_vars.items():
+            cmd.extend(["-e", f"{k}={v}"])
+
+    # Image and command
     cmd.append(image)
-    
-    # Add command
     cmd.extend(command)
-    
+
     return cmd
+
+
+def docker_cp(src: str, dst: str) -> subprocess.CompletedProcess:
+    """Copy a file or directory into a container using `docker cp`.
+
+    `dst` is of the form `container_id:/path/in/container`.
+    """
+    return subprocess.run(["docker", "cp", src, dst], capture_output=True, text=True)
+
+
+def docker_create(image: str, command: List[str], *, port: Optional[int] = None,
+                  network_mode: Optional[str] = None,
+                  container_name: Optional[str] = None,
+                  env_vars: Optional[Dict[str, str]] = None) -> str:
+    """Create a container and return its container id."""
+    create_cmd = build_docker_create_command(
+        image=image,
+        command=command,
+        port=port,
+        network_mode=network_mode,
+        container_name=container_name,
+        env_vars=env_vars,
+    )
+    result = subprocess.run(create_cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        logging.error("Failed to create container: %s", result.stderr)
+        raise subprocess.SubprocessError(result.stderr.strip())
+    return result.stdout.strip()
+
+
+def docker_start_attach(container_id: str, *, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
+    """Start the container and attach to its output until it exits."""
+    return subprocess.run(["docker", "start", "-a", container_id], capture_output=True, text=True, timeout=timeout)
+
+
+def docker_stop_rm(container_id: str, *, force: bool = False) -> None:
+    """Stop and remove a container, ignoring errors."""
+    try:
+        subprocess.run(["docker", "stop", container_id], capture_output=True, text=True, check=False)
+    finally:
+        if force:
+            subprocess.run(["docker", "rm", "-f", container_id], capture_output=True, text=True, check=False)
+        else:
+            subprocess.run(["docker", "rm", container_id], capture_output=True, text=True, check=False)

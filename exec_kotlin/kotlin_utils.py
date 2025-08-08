@@ -251,9 +251,21 @@ fun main() {{
             return Result(success=False, errors=[str(e)])
 
     def get_run_command(self) -> List[str]:
-        """Get the command to run the compiled Kotlin Native executable."""
-        # The executable is located in build/bin/native/releaseExecutable/ with .kexe extension
-        return ["./build/bin/native/releaseExecutable/main.kexe"]
+        """Build then run the Kotlin Native binary in the same container."""
+        return [
+            "sh",
+            "-lc",
+            "./gradlew -Pkotlin.native.distribution.downloadFromMavenCentral=true -Porg.jetbrains.kotlin.native.distribution.downloadFromMavenCentral=true nativeBinaries --console=plain && ./build/bin/native/releaseExecutable/main.kexe",
+        ]
+
+    def get_build_command(self) -> List[str] | None:
+        """Build Kotlin Native binary inside the container."""
+        # Build native binaries using Gradle; fetch Kotlin/Native toolchain from Maven Central if needed
+        return [
+            "sh",
+            "-lc",
+            "./gradlew -Pkotlin.native.distribution.downloadFromMavenCentral=true -Porg.jetbrains.kotlin.native.distribution.downloadFromMavenCentral=true nativeBinaries --console=plain",
+        ]
 
 
 # Create singleton instance

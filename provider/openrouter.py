@@ -104,8 +104,8 @@ def _get_conn(url: str):
     # Parse the URL to extract host and path
     parsed_url = urlparse(url)
     conn = http.client.HTTPSConnection(
-        parsed_url.netloc, timeout=1400
-    )  # super long timeout for reasoning models
+        parsed_url.netloc, timeout=3600
+    )  # 1 hour timeout for reasoning models
 
     headers = {
         "Content-Type": "application/json",

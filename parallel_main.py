@@ -115,9 +115,11 @@ def get_models(specific_model: Optional[str] = None) -> List[str]:
         "openrouter/qwen/qwen3-235b-a22b-2507",
         "openrouter/moonshotai/kimi-k2",
         "openrouter/anthropic/claude-sonnet-4",
-        # "openrouter/mistralai/devstral-small",
+        "openrouter/mistralai/codestral-2508",
         "openrouter/qwen/qwen3-coder",
         "openrouter/google/gemini-2.5-flash-lite",
+        "openrouter/openai/gpt-5",
+        "openrouter/openai/gpt-oss-120b",
     ]
 
     # Default model list (same as main.py)

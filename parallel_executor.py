@@ -115,7 +115,7 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         
         # Prepare result data
         result_data = {
-            'result': result.result,
+            'result': result.result.success,  # Fixed: Extract boolean from Result object
             'prompt': work_item.task.prompt,
             'code': result.code,
             'run': work_item.run,
@@ -142,6 +142,11 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         
     except Exception as e:
         logging.error(f"Error processing {work_item.task.filename}: {str(e)}")
+        # Ensure expected_output is always a string
+        expected = getattr(work_item.task, 'expected_output', '')
+        if not isinstance(expected, str):
+            expected = json.dumps(expected)
+        
         return ProcessedResult(
             success=False,
             model=work_item.model,
@@ -156,7 +161,7 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
                 'code': '',
                 'response': '',
                 'output': '',
-                'expected_output': getattr(work_item.task, 'expected_output', ''),
+                'expected_output': expected,  # Fixed: Always ensure it's a string
                 'is_lang_specific': work_item.task.is_lang_specific,
                 'mutated_code': '',
             },

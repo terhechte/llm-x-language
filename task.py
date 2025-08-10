@@ -56,6 +56,7 @@ class Language(Enum):
     LUA = "lua"
     GO = "go"
     KOTLIN = "kotlin"
+    CSHARP = "csharp"
 
     def string_type(self) -> str:
         if self == Language.RUST:
@@ -72,6 +73,8 @@ class Language(Enum):
             return "`string`"
         elif self == Language.KOTLIN:
             return "`String`"
+        elif self == Language.CSHARP:
+            return "`string`"
         else:
             return "`String`"
 

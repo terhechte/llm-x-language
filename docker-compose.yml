@@ -40,3 +40,7 @@ services:
   cpp:
     build: ./dojo/cpp_container
     image: llm-benchmark/cpp:latest
+    
+  java:
+    build: ./dojo/java_container
+    image: llm-benchmark/java:latest

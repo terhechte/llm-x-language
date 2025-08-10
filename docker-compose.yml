@@ -36,3 +36,7 @@ services:
   csharp:
     build: ./dojo/csharp_container
     image: llm-benchmark/csharp:latest
+    
+  cpp:
+    build: ./dojo/cpp_container
+    image: llm-benchmark/cpp:latest

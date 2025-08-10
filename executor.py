@@ -10,6 +10,7 @@ from exec_lua import exec_call as lua_exec_call, exec_contains as lua_exec_conta
 from exec_go import exec_call as go_exec_call, exec_contains as go_exec_contains, exec_run as go_exec_run, exec_check as go_exec_check
 from exec_kotlin import exec_call as kotlin_exec_call, exec_contains as kotlin_exec_contains, exec_run as kotlin_exec_run, exec_check as kotlin_exec_check
 from exec_csharp import exec_call as csharp_exec_call, exec_contains as csharp_exec_contains, exec_run as csharp_exec_run, exec_check as csharp_exec_check
+from exec_cpp import exec_call as cpp_exec_call, exec_contains as cpp_exec_contains, exec_run as cpp_exec_run, exec_check as cpp_exec_check
 
 
 class Executor:
@@ -52,6 +53,8 @@ class Executor:
             return kotlin_exec_call(task, model, run)
         elif self.language == Language.CSHARP:
             return csharp_exec_call(task, model, run)
+        elif self.language == Language.CPP:
+            return cpp_exec_call(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -74,6 +77,8 @@ class Executor:
             return kotlin_exec_contains(task, model, run)
         elif self.language == Language.CSHARP:
             return csharp_exec_contains(task, model, run)
+        elif self.language == Language.CPP:
+            return cpp_exec_contains(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -96,6 +101,8 @@ class Executor:
             return kotlin_exec_run(task, model, run)
         elif self.language == Language.CSHARP:
             return csharp_exec_run(task, model, run)
+        elif self.language == Language.CPP:
+            return cpp_exec_run(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -118,5 +125,7 @@ class Executor:
             return kotlin_exec_check(task, model, run)
         elif self.language == Language.CSHARP:
             return csharp_exec_check(task, model, run)
+        elif self.language == Language.CPP:
+            return cpp_exec_check(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")

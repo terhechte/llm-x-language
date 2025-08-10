@@ -44,3 +44,7 @@ services:
   java:
     build: ./dojo/java_container
     image: llm-benchmark/java:latest
+    
+  zig:
+    build: ./dojo/zig_container
+    image: llm-benchmark/zig:latest

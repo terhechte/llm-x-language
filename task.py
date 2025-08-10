@@ -59,6 +59,7 @@ class Language(Enum):
     CSHARP = "csharp"
     CPP = "cpp"
     JAVA = "java"
+    ZIG = "zig"
 
     def string_type(self) -> str:
         if self == Language.RUST:
@@ -81,6 +82,8 @@ class Language(Enum):
             return "`std::string`"
         elif self == Language.JAVA:
             return "`String`"
+        elif self == Language.ZIG:
+            return "`[]const u8`"
         else:
             return "`String`"
 

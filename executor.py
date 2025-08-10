@@ -13,6 +13,7 @@ from exec_csharp import exec_call as csharp_exec_call, exec_contains as csharp_e
 from exec_cpp import exec_call as cpp_exec_call, exec_contains as cpp_exec_contains, exec_run as cpp_exec_run, exec_check as cpp_exec_check
 from exec_java import exec_call as java_exec_call, exec_contains as java_exec_contains, exec_run as java_exec_run, exec_check as java_exec_check
 from exec_zig import exec_call as zig_exec_call, exec_contains as zig_exec_contains, exec_run as zig_exec_run, exec_check as zig_exec_check
+from exec_scala import exec_call as scala_exec_call, exec_contains as scala_exec_contains, exec_run as scala_exec_run, exec_check as scala_exec_check
 
 
 class Executor:
@@ -61,6 +62,8 @@ class Executor:
             return java_exec_call(task, model, run)
         elif self.language == Language.ZIG:
             return zig_exec_call(task, model, run)
+        elif self.language == Language.SCALA:
+            return scala_exec_call(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -89,6 +92,8 @@ class Executor:
             return java_exec_contains(task, model, run)
         elif self.language == Language.ZIG:
             return zig_exec_contains(task, model, run)
+        elif self.language == Language.SCALA:
+            return scala_exec_contains(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -117,6 +122,8 @@ class Executor:
             return java_exec_run(task, model, run)
         elif self.language == Language.ZIG:
             return zig_exec_run(task, model, run)
+        elif self.language == Language.SCALA:
+            return scala_exec_run(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")
 
@@ -145,5 +152,7 @@ class Executor:
             return java_exec_check(task, model, run)
         elif self.language == Language.ZIG:
             return zig_exec_check(task, model, run)
+        elif self.language == Language.SCALA:
+            return scala_exec_check(task, model, run)
         else:
             raise ValueError(f"Unsupported language: {self.language}")

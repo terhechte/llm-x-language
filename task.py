@@ -60,6 +60,7 @@ class Language(Enum):
     CPP = "cpp"
     JAVA = "java"
     ZIG = "zig"
+    SCALA = "scala"
 
     def string_type(self) -> str:
         if self == Language.RUST:
@@ -84,6 +85,8 @@ class Language(Enum):
             return "`String`"
         elif self == Language.ZIG:
             return "`[]const u8`"
+        elif self == Language.SCALA:
+            return "`String`"
         else:
             return "`String`"
 

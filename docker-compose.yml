@@ -48,3 +48,7 @@ services:
   zig:
     build: ./dojo/zig_container
     image: llm-benchmark/zig:latest
+    
+  scala:
+    build: ./dojo/scala_container
+    image: llm-benchmark/scala:latest

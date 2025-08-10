@@ -1,9 +1,11 @@
 FROM openjdk:17-slim
 
-# Install required dependencies
+# Install required dependencies including GCC for Kotlin Native
 RUN apt-get update && apt-get install -y \
     curl \
     unzip \
+    gcc \
+    libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -17,9 +19,16 @@ COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 # Make gradlew executable
 RUN chmod +x gradlew
 
-# Download dependencies
+# Set Kotlin Native target to Linux
+ENV KONAN_DATA_DIR=/tmp/konan
+
+# Download dependencies and pre-build for Linux target
 RUN ./gradlew dependencies --no-daemon || true
 
+# Pre-build empty JAR to speed up execution
+RUN mkdir -p src/main/kotlin && \
+    echo 'fun main() { println("Ready") }' > src/main/kotlin/Main.kt && \
+    ./gradlew jar --no-daemon
+
 # Default command - will be overridden by docker run
-# Note: Building and running must be done in separate steps
-CMD ["./gradlew", "nativeBinaries", "--console=plain"]
+CMD ["/usr/local/openjdk-17/bin/java", "-jar", "build/libs/kotlin_container.jar"]

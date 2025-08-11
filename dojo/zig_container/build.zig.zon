@@ -1,0 +1,16 @@
+.{
+    .name = "zig-container",
+    .version = "1.0.0",
+    .minimum_zig_version = "0.13.0",
+    .dependencies = .{
+        .httpz = .{
+            .url = "https://github.com/karlseguin/http.zig/archive/refs/heads/master.tar.gz",
+            .hash = "1220000000000000000000000000000000000000000000000000000000000000dead",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon", 
+        "src",
+    },
+}

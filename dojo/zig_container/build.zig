@@ -8,10 +8,17 @@ pub fn build(b: *std.Build) void {
     // Create executable
     const exe = b.addExecutable(.{
         .name = "main",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    // Note: To add httpz dependency, uncomment the following:
+    // const httpz_dep = b.dependency("httpz", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    // exe.root_module.addImport("httpz", httpz_dep.module("httpz"));
 
     // Install the executable
     b.installArtifact(exe);

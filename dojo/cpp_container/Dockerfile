@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     libcurl4-openssl-dev \
     nlohmann-json3-dev \
+    libboost-date-time-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install cpp-httplib (header-only HTTP server library)
+RUN curl -L https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.14.3.tar.gz | tar xz -C /usr/include --strip-components=1 cpp-httplib-0.14.3/httplib.h
 
 WORKDIR /app
 

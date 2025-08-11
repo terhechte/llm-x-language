@@ -1,14 +1,13 @@
-# Add Function
+The Zig standard library is available (`@import("std")`).
 
-Create a simple function that adds two numbers.
+NO OTHER PACKAGES ARE AVAILABLE.
 
-```zig
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
-```
+The standard library includes:
+- Memory management (`std.mem`)
+- I/O operations (`std.io`)
+- File system (`std.fs`)
+- Networking (`std.net`)
+- JSON parsing (`std.json`)
+- Data structures (`std.ArrayList`, `std.HashMap`, etc.)
 
-The function should:
-- Take two i32 (integer) parameters
-- Return their sum as i32
-- Be a public function
+Don't show the output of the required code, just the code in markdown ticks (```{{lang}}).

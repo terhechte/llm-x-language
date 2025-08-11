@@ -1,3 +1,4 @@
+Please use Python's type hints!
 The following additional Python packages are available:
 
 - requests

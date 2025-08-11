@@ -1,14 +1,11 @@
-# Add Function
+The following C++ libraries are available:
 
-Create a simple function that adds two numbers.
+- C++17 standard library
+- libcurl (for HTTP/HTTPS requests) - `#include <curl/curl.h>`
+- nlohmann/json (for JSON parsing) - `#include <nlohmann/json.hpp>`
+- pthread (for threading) - `#include <pthread.h>`
 
-```cpp
-int Add(int a, int b) {
-    return a + b;
-}
-```
+NO OTHER PACKAGES ARE AVAILABLE.
+If you need to use a library, you must include it.
 
-The function should:
-- Take two integer parameters
-- Return their sum
-- Be named `Add`
+Don't show the output of the required code, just the code in markdown ticks (```{{lang}}).

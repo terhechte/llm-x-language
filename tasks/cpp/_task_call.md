@@ -1,18 +1,2 @@
-# Task: Function Call
-
-Write a C++ function called `example` that takes a string parameter and returns a string.
-
-Example structure:
-```cpp
-#include <string>
-
-std::string example(std::string input) {
-    // Your implementation here
-    return result;
-}
-```
-
-The function should:
-- Accept a `std::string` parameter
-- Process the input according to the task requirements
-- Return a `std::string` result
+Please don't include a usage example in the code. Just the function
+The name of the function should be `example`. E.g. `{{string_type}} example({{string_type}} input)` with the parameters explained earlier

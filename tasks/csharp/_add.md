@@ -1,15 +1,12 @@
-# Add Function
+The following .NET packages are available:
 
-Create a simple function that adds two numbers.
+- .NET 8.0 Base Class Library
+- Microsoft.AspNetCore (for HTTP server) - `using Microsoft.AspNetCore.*`
+- System.Text.Json (for JSON) - `using System.Text.Json`
+- Newtonsoft.Json (for JSON) - `using Newtonsoft.Json`
+- System.Net.Http.Json (for HTTP+JSON) - `using System.Net.Http.Json`
 
-```csharp
-public static int Add(int a, int b)
-{
-    return a + b;
-}
-```
+NO OTHER PACKAGES ARE AVAILABLE.
+If you need to use a package, you must import it with `using`.
 
-The function should:
-- Take two integer parameters
-- Return their sum as an integer
-- Be named `Add`
+Don't show the output of the required code, just the code in markdown ticks (```{{lang}}).

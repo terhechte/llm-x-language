@@ -1,16 +1,13 @@
-# Add Function
+The following Scala packages are available:
 
-Create a simple function that adds two numbers.
+- Circe (for JSON processing) - `import io.circe._, io.circe.generic.auto._, io.circe.parser._`
+- STTP (for HTTP client) - `import sttp.client3._`
+- Akka HTTP (for HTTP server) - `import akka.http.scaladsl._, akka.actor.typed._`
+- Logback (for logging) - `import org.slf4j.LoggerFactory`
+- Scala standard library
+- Java standard library
 
-```scala
-object Add {
-  def add(a: Int, b: Int): Int = {
-    a + b
-  }
-}
-```
+NO OTHER PACKAGES ARE AVAILABLE.
+If you need to use a package, you must import it.
 
-The function should:
-- Take two Int parameters
-- Return their sum as Int
-- Be defined in an object or class
+Don't show the output of the required code, just the code in markdown ticks (```{{lang}}).

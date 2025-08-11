@@ -1,23 +1,2 @@
-# Task: Function Call
-
-Write a Scala function called `example` that takes a String parameter and returns a String.
-
-Example structure:
-```scala
-object Main {
-  def example(input: String): String = {
-    // Your implementation here
-    result
-  }
-  
-  def main(args: Array[String]): Unit = {
-    // Main method for execution
-  }
-}
-```
-
-The function should:
-- Accept a `String` parameter
-- Process the input according to the task requirements
-- Return a `String` result
-- Be a method in an object or class
+Please don't include a usage example in the code. Just the function
+The name of the function should be `example`. E.g. `def example(input: {{string_type}}): {{string_type}}` with the parameters explained earlier

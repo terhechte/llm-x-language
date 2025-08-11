@@ -1,14 +1,2 @@
-# Task: Function Call
-
-Write a C# function called `Example` that takes a `string` parameter and returns a `string`.
-
-The function should process the input and return the appropriate output based on the task requirements.
-
-Example structure:
-```csharp
-public static string Example(string input)
-{
-    // Process input and return result
-    return result;
-}
-```
+Please don't include a usage example in the code. Just the function
+The name of the function should be `example`. E.g. `public static {{string_type}} example({{string_type}} input)` with the parameters explained earlier

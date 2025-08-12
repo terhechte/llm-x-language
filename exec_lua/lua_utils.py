@@ -77,6 +77,10 @@ class LuaUtils(BaseLanguageUtils):
             "if command -v luarocks >/dev/null 2>&1; then eval $(luarocks path); fi; lua main.lua",
         ]
     
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Lua code."""
+        return ["luac", "-p", "main.lua"]
+    
     def get_build_command(self) -> Optional[List[str]]:
         """Lua doesn't need a build step."""
         return None

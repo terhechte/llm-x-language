@@ -141,6 +141,10 @@ class BaseLanguageUtils(ABC):
         """Get the command to run the main file."""
         pass
     
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get the command to validate/check the code. Return None to skip validation."""
+        return None
+    
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command if needed. Return None if no build step required."""
         return None
@@ -191,6 +195,18 @@ class BaseLanguageUtils(ABC):
         if stdout and "error" in stdout.lower():
             errors.append(stdout)
         return errors if errors else ["Build failed"]
+    
+    def extract_validation_errors(self, stdout: str, stderr: str) -> List[str]:
+        """
+        Extract meaningful error messages from validation output.
+        Can be overridden for language-specific error extraction.
+        """
+        errors = []
+        if stderr and ("error" in stderr.lower() or "failed" in stderr.lower()):
+            errors.append(stderr)
+        if stdout and "error" in stdout.lower():
+            errors.append(stdout)
+        return errors if errors else ["Validation failed"]
     
     def run_script(self, code_path: str, timeout: int = 60) -> Result:
         """
@@ -288,9 +304,27 @@ class BaseLanguageUtils(ABC):
     
     def run_docker_validation(self, code_path: str) -> Result:
         """Run validation using Docker."""
-        # For Docker, we don't need to run validation separately
-        # as dependencies are pre-installed in the image
-        return Result(success=True, errors=[])
+        validation_cmd = self.get_validation_command()
+        if not validation_cmd:
+            # No validation command provided, skip validation
+            return Result(success=True, errors=[])
+        
+        try:
+            # Create container and stage code
+            container_id = self._create_and_stage_container(validation_cmd, code_path)
+            result = docker_start_attach(container_id, timeout=60)
+            docker_stop_rm(container_id)
+            
+            if result.returncode != 0:
+                # Parse validation errors from output
+                errors = self.extract_validation_errors(result.stdout, result.stderr)
+                return Result(success=False, errors=errors)
+            
+            return Result(success=True, errors=[])
+        except subprocess.TimeoutExpired:
+            return Result(success=False, errors=["Docker validation timed out after 60 seconds"])
+        except subprocess.SubprocessError as e:
+            return Result(success=False, errors=[str(e)])
     
     def run_docker_build(self, code_path: str) -> Result:
         """Run build command using Docker if needed."""

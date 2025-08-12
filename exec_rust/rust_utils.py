@@ -78,6 +78,10 @@ class RustUtils(BaseLanguageUtils):
     def get_run_command(self) -> List[str]:
         """Get command to run Rust code."""
         return ["cargo", "run"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Rust code."""
+        return ["cargo", "check"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Rust.

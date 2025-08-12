@@ -83,6 +83,10 @@ class ZigUtils(BaseLanguageUtils):
             return ["bash", "-c", "zig build-exe src/main.zig -femit-bin=main && ./main"]
         else:
             return ["./main"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Zig code."""
+        return ["zig", "build-exe", "-fno-emit-bin", "src/main.zig"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Zig."""

@@ -53,6 +53,10 @@ class TypeScriptUtils(BaseLanguageUtils):
         # Use pnpm exec to avoid lifecycle banner noise in stdout
         return ["pnpm", "-s", "exec", "tsx", "src/index.ts"]
     
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate TypeScript code."""
+        return ["pnpm", "run", "typecheck"]
+    
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for TypeScript."""
         # Clean dist folder before build to avoid stale artifacts

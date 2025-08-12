@@ -175,6 +175,10 @@ func main() {{
         """Get command to run Go code."""
         return ["go", "run", "main.go"]
     
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Go code."""
+        return ["go", "vet", "./..."]
+    
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Go."""
         # Clean before build to ensure no stale cache

@@ -119,6 +119,10 @@ done
             return ["bash", "-c", filter_script.strip()]
         else:
             return ["sbt", "-batch", "run"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Scala code."""
+        return ["sbt", "-batch", "-error", "compile"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Scala."""

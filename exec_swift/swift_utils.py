@@ -92,6 +92,10 @@ class SwiftUtils(BaseLanguageUtils):
         # for the run step; ensure we build before running to avoid the
         # prebuilt "temp" binary from the image.
         return ["swift", "run"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Swift code."""
+        return ["swift", "build", "--build-tests"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for Swift."""

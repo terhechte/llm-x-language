@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import logging
-from typing import List
+from typing import List, Optional
 from base_executor import BaseLanguageUtils
 from utils import Result
 
@@ -257,6 +257,10 @@ fun main() {{
             "-lc",
             "./gradlew jar --console=plain --quiet --no-daemon >/dev/null 2>&1 && /usr/local/openjdk-17/bin/java -jar build/libs/kotlin_container.jar",
         ]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Kotlin code."""
+        return ["gradle", "compileKotlin"]
 
     def get_build_command(self) -> List[str] | None:
         """Build Kotlin JVM application inside the container."""

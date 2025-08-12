@@ -106,6 +106,10 @@ public class Main {{
         else:
             # For native execution, just run (assumes already compiled)
             return ["java", "-cp", "target/classes:target/dependency/*", "Main"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Java code."""
+        return ["javac", "-Xlint:all", "Main.java"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Java."""

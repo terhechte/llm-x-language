@@ -2,7 +2,7 @@ import os
 import subprocess
 import logging
 import json
-from typing import List
+from typing import List, Optional
 
 from base_executor import BaseLanguageUtils
 from utils import Result
@@ -98,6 +98,10 @@ if __name__ == "__main__":
     def get_run_command(self) -> List[str]:
         """Get command to run Python code."""
         return ["poetry", "run", "python", "main.py"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate Python code."""
+        return ["poetry", "run", "pylint", "--errors-only", "main.py"]
     
     def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract Python-specific runtime errors."""

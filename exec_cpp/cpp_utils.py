@@ -104,6 +104,10 @@ using namespace std;
             return ["bash", "-c", "cmake . >&2 && make >&2 && ./main"]
         else:
             return ["./main"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate C++ code."""
+        return ["g++", "-fsyntax-only", "-Wall", "-Wextra", "main.cpp"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for C++."""

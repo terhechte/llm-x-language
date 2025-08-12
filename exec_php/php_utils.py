@@ -48,6 +48,10 @@ class PHPUtils(BaseLanguageUtils):
         """Get command to run PHP code."""
         return ["php", "main.php"]
     
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate PHP code."""
+        return ["php", "-l", "main.php"]
+    
     def get_build_command(self) -> Optional[List[str]]:
         """PHP doesn't need a build step."""
         return None

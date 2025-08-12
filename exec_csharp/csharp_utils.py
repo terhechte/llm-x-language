@@ -90,6 +90,10 @@ class CSharpUtils(BaseLanguageUtils):
     def get_run_command(self) -> List[str]:
         """Get command to run C# code."""
         return ["dotnet", "run", "--nologo", "--verbosity", "quiet", "/p:NoWarn=NU1903"]
+    
+    def get_validation_command(self) -> Optional[List[str]]:
+        """Get command to validate C# code."""
+        return ["dotnet", "build", "--no-restore"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for C#."""

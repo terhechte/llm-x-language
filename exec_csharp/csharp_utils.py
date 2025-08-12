@@ -206,29 +206,92 @@ class CSharpUtils(BaseLanguageUtils):
         """
         Override prepare_codebase to ensure C# code has proper structure.
         """
-        # Check if code is a top-level program or needs a class wrapper
-        has_namespace = "namespace " in code
-        has_class = "class " in code and "Program" in code
-        has_main = "static void Main" in code or "static async Task Main" in code
+        import re
         
-        # If it's not a complete program, assume it's top-level statements
-        if not has_namespace and not has_class and not has_main:
-            # Modern C# supports top-level programs, so we can use the code as-is
-            pass
-        elif has_class and not has_main:
-            # If there's a class but no Main method, add one
-            code = code.strip() + """
+        # Check what structure the code has
+        has_namespace = "namespace " in code
+        has_program_class = "class Program" in code
+        has_main = "static void Main" in code or "static async Task Main" in code
+        has_any_class = "class " in code
+        
+        # Check for custom utility classes (like StringUtilities)
+        class_match = re.search(r'(?:public\s+)?(?:static\s+)?class\s+(\w+)', code)
+        has_utility_class = class_match and class_match.group(1) not in ['Program', 'Main']
+        
+        # Split code into using statements and the rest
+        code_lines = code.strip().split('\n')
+        usings = []
+        body_lines = []
+        
+        for line in code_lines:
+            line_stripped = line.strip()
+            if line_stripped.startswith('using ') and line_stripped.endswith(';'):
+                usings.append(line)
+            else:
+                body_lines.append(line)
+        
+        # Build using section
+        using_section = '\n'.join(usings) + '\n\n' if usings else ''
+        body_code = '\n'.join(body_lines).strip()
+        
+        # Decide how to structure the code
+        if has_program_class and has_main:
+            # Already has proper structure
+            return super().prepare_codebase(code)
+        elif has_utility_class and not has_main:
+            # Has a utility class but no Main - use top-level statements
+            # This is valid modern C# where top-level statements come before class declarations
+            wrapped_code = f"""{using_section}// Top-level program entry point
+Console.WriteLine("Program ready");
+
+{body_code}
+"""
+        elif has_any_class and not has_main and not has_utility_class:
+            # Has some class but it's not a utility class and no Main
+            # Add a Program class with Main
+            wrapped_code = f"""{using_section}{body_code}
 
 public static class Program
-{
+{{
     public static void Main(string[] args)
-    {
+    {{
         // Entry point added for execution
-    }
-}
+    }}
+}}
 """
+        elif not has_any_class and not has_main:
+            # Just loose methods or code - wrap in Program class
+            if body_code:
+                # Check if it looks like methods that should be in a class
+                has_methods = "public " in body_code or "private " in body_code or "static " in body_code or "void " in body_code or "string " in body_code or "int " in body_code
+                
+                if has_methods:
+                    # Wrap methods in Program class
+                    # Indent the body code
+                    indented_body = '\n'.join('    ' + line if line.strip() else '' 
+                                            for line in body_code.split('\n'))
+                    wrapped_code = f"""{using_section}public static class Program
+{{
+{indented_body}
+    
+    public static void Main(string[] args)
+    {{
+        // Entry point added for execution
+    }}
+}}
+"""
+                else:
+                    # Looks like top-level statements, use as-is
+                    wrapped_code = code
+            else:
+                # Empty or minimal code, create basic structure
+                wrapped_code = f"""{using_section}Console.WriteLine("Program ready");
+"""
+        else:
+            # Default case - use code as-is
+            wrapped_code = code
         
-        return super().prepare_codebase(code)
+        return super().prepare_codebase(wrapped_code)
 
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:
         """

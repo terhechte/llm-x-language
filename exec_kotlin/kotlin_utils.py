@@ -260,7 +260,7 @@ fun main() {{
     
     def get_validation_command(self) -> Optional[List[str]]:
         """Get command to validate Kotlin code."""
-        return ["gradle", "compileKotlin"]
+        return ["./gradlew", "compileKotlin", "--console=plain", "--no-daemon"]
 
     def get_build_command(self) -> List[str] | None:
         """Build Kotlin JVM application inside the container."""

@@ -247,10 +247,39 @@ done
             # Already handled in extract_language_code
             return super().prepare_codebase(code)
         
-        # Add empty Main object with main method for compilation
-        wrapped_code = f"""{code.strip()}
-
-object Main {{
+        # Split code into imports and the rest
+        code_lines = code.strip().split('\n')
+        imports = []
+        object_content = []
+        
+        for line in code_lines:
+            line_stripped = line.strip()
+            if line_stripped.startswith('import '):
+                imports.append(line)
+            elif line_stripped:  # Non-empty, non-import line
+                object_content.append(line)
+        
+        # Build the final code
+        if imports:
+            import_section = '\n'.join(imports) + '\n\n'
+        else:
+            import_section = ''
+        
+        if object_content:
+            # Indent the object content properly (Scala typically uses 2 spaces)
+            indented_content = '\n'.join('  ' + line if line.strip() else '' 
+                                        for line in '\n'.join(object_content).split('\n'))
+            wrapped_code = f"""{import_section}object Main {{
+{indented_content}
+  
+  def main(args: Array[String]): Unit = {{
+    // Empty main method for compilation
+  }}
+}}
+"""
+        else:
+            # No actual code content, just create empty Main object
+            wrapped_code = f"""{import_section}object Main {{
   def main(args: Array[String]): Unit = {{
     // Empty main method for compilation
   }}

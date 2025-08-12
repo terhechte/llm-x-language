@@ -109,7 +109,7 @@ public class Main {{
     
     def get_validation_command(self) -> Optional[List[str]]:
         """Get command to validate Java code."""
-        return ["javac", "-Xlint:all", "Main.java"]
+        return ["javac", "-Xlint:all", "src/main/java/Main.java"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Java."""
@@ -200,10 +200,39 @@ public class Main {{
             # Already handled in extract_language_code
             return super().prepare_codebase(code)
         
-        # Add empty Main class with main method for type checking
-        wrapped_code = f"""{code.strip()}
-
-public class Main {{
+        # Split code into imports and the rest
+        code_lines = code.strip().split('\n')
+        imports = []
+        class_content = []
+        
+        for line in code_lines:
+            line_stripped = line.strip()
+            if line_stripped.startswith('import ') or line_stripped.startswith('package '):
+                imports.append(line)
+            elif line_stripped:  # Non-empty, non-import line
+                class_content.append(line)
+        
+        # Build the final code
+        if imports:
+            import_section = '\n'.join(imports) + '\n\n'
+        else:
+            import_section = ''
+        
+        if class_content:
+            # Indent the class content properly
+            indented_content = '\n'.join('    ' + line if line.strip() else '' 
+                                        for line in '\n'.join(class_content).split('\n'))
+            wrapped_code = f"""{import_section}public class Main {{
+{indented_content}
+    
+    public static void main(String[] args) {{
+        // Empty main method for compilation
+    }}
+}}
+"""
+        else:
+            # No actual code content, just create empty Main class
+            wrapped_code = f"""{import_section}public class Main {{
     public static void main(String[] args) {{
         // Empty main method for compilation
     }}

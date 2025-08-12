@@ -102,14 +102,15 @@ public class Main {{
         """Get command to run Java code - compile and run in one step for Docker."""
         # For Docker, combine compile and run to ensure proper execution
         if self._use_docker():
-            return ["sh", "-c", "mvn compile -q && java -cp target/classes:target/dependency/* Main"]
+            # Use mvn exec:java which handles classpath correctly
+            return ["sh", "-c", "mvn compile -q && mvn exec:java -Dexec.mainClass=Main -q"]
         else:
-            # For native execution, just run (assumes already compiled)
-            return ["java", "-cp", "target/classes:target/dependency/*", "Main"]
+            # For native execution, use mvn exec:java as well
+            return ["mvn", "exec:java", "-Dexec.mainClass=Main", "-q"]
     
     def get_validation_command(self) -> Optional[List[str]]:
         """Get command to validate Java code."""
-        return ["javac", "-Xlint:all", "src/main/java/Main.java"]
+        return ["mvn", "compile", "-q"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Java."""
@@ -159,9 +160,9 @@ public class Main {{
                 errors = self.extract_build_errors(compile_result.stdout, compile_result.stderr)
                 return Result(success=False, errors=errors)
             
-            # Then, run the Java application
+            # Then, run the Java application using mvn exec:java
             run_result = subprocess.run(
-                ["java", "-cp", "target/classes:target/dependency/*", "Main"],
+                ["mvn", "exec:java", "-Dexec.mainClass=Main", "-q"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,

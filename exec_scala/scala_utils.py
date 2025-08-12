@@ -99,7 +99,26 @@ object Main {{
     def get_run_command(self) -> List[str]:
         """Get command to run Scala code."""
         # Note: Don't use -error flag for run as it suppresses program output
-        return ["sbt", "-batch", "run"]
+        # In Docker mode, we need to filter SBT output to get only program output
+        if self._use_docker():
+            # Filter out all SBT metadata lines and extract actual program output
+            # Lines starting with [info] that are NOT SBT metadata get the prefix removed
+            filter_script = r"""
+sbt -batch run | while IFS= read -r line; do
+    if [[ "$line" =~ ^\[info\]\ (welcome|loading|compiling|done\ compiling|running|set\ current|Total\ time) ]]; then
+        continue
+    elif [[ "$line" =~ ^\[success\] ]]; then
+        continue
+    elif [[ "$line" =~ ^\[info\]\ (.*)$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    elif [[ ! "$line" =~ ^\[.*\] ]]; then
+        echo "$line"
+    fi
+done
+"""
+            return ["bash", "-c", filter_script.strip()]
+        else:
+            return ["sbt", "-batch", "run"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Scala."""

@@ -98,7 +98,12 @@ using namespace std;
 
     def get_run_command(self) -> List[str]:
         """Get command to run C++ code."""
-        return ["./main"]
+        # In Docker mode, we need to build first since the container is fresh
+        if self._use_docker():
+            # Redirect build output to stderr so we only get program output on stdout
+            return ["bash", "-c", "cmake . >&2 && make >&2 && ./main"]
+        else:
+            return ["./main"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for C++."""

@@ -62,7 +62,7 @@ class CSharpUtils(BaseLanguageUtils):
         errors = []
         try:
             result = subprocess.run(
-                ["dotnet", "build", "--nologo", "--verbosity", "quiet"],
+                ["dotnet", "build", "--nologo", "--verbosity", "quiet", "/p:WarningLevel=0", "/p:NoWarn=NU1903"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,
@@ -89,11 +89,11 @@ class CSharpUtils(BaseLanguageUtils):
 
     def get_run_command(self) -> List[str]:
         """Get command to run C# code."""
-        return ["dotnet", "run"]
+        return ["dotnet", "run", "--nologo", "--verbosity", "quiet", "/p:NoWarn=NU1903"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get the build command for C#."""
-        return ["dotnet", "build", "--nologo"]
+        return ["dotnet", "build", "--nologo", "--verbosity", "quiet", "/p:WarningLevel=0", "/p:NoWarn=NU1903"]
 
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:
         """Extract C#-specific build errors."""
@@ -113,11 +113,40 @@ class CSharpUtils(BaseLanguageUtils):
         return ["Runtime error occurred"]
     
     def clean_output(self, output: str) -> str:
-        """Clean C# output by removing NuGet warnings."""
+        """Clean C# output by removing build output, warnings, and other noise."""
         output_lines = []
+        skip_patterns = [
+            # Build output patterns
+            'Build succeeded',
+            'Time Elapsed',
+            'Warning(s)',
+            'Error(s)',
+            # NuGet warnings
+            '/app/csharp_container.csproj : warning NU',
+            # CS warnings (compiler warnings)
+            ': warning CS',
+            # General warning lines
+            'warning',
+            # Restore messages
+            'Determining projects to restore',
+            'Restored',
+            'All projects are up-to-date',
+        ]
+        
         for line in output.split('\n'):
-            if not line.strip().startswith('/app/csharp_container.csproj : warning NU'):
+            line_stripped = line.strip()
+            # Skip empty lines
+            if not line_stripped:
+                continue
+            # Skip lines matching any skip pattern
+            should_skip = False
+            for pattern in skip_patterns:
+                if pattern.lower() in line_stripped.lower():
+                    should_skip = True
+                    break
+            if not should_skip:
                 output_lines.append(line)
+        
         return '\n'.join(output_lines).strip()
 
     def run_script(self, code_path: str, timeout: int = 60) -> Result:
@@ -127,7 +156,7 @@ class CSharpUtils(BaseLanguageUtils):
         try:
             # First build the project
             build_result = subprocess.run(
-                ["dotnet", "build", "--nologo", "--verbosity", "quiet"],
+                ["dotnet", "build", "--nologo", "--verbosity", "quiet", "/p:WarningLevel=0", "/p:NoWarn=NU1903"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,
@@ -141,7 +170,7 @@ class CSharpUtils(BaseLanguageUtils):
 
             # Then run it
             result = subprocess.run(
-                ["dotnet", "run", "--no-build", "--no-logo"],
+                ["dotnet", "run", "--no-build", "--nologo", "--verbosity", "quiet", "/p:NoWarn=NU1903"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,

@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 
 from base_executor import BaseLanguageUtils
 from utils import Result
+from docker_utils import docker_start_attach, docker_stop_rm
 
 
 class JavaUtils(BaseLanguageUtils):
@@ -96,12 +97,21 @@ public class Main {{
             logging.error("Error during Java compilation: %s", e)
             return Result(success=False, errors=[str(e)])
 
+
     def get_run_command(self) -> List[str]:
-        """Get command to run Java code."""
-        return ["java", "-cp", "target/classes", "Main"]
+        """Get command to run Java code - compile and run in one step for Docker."""
+        # For Docker, combine compile and run to ensure proper execution
+        if self._use_docker():
+            return ["sh", "-c", "mvn compile -q && java -cp target/classes:target/dependency/* Main"]
+        else:
+            # For native execution, just run (assumes already compiled)
+            return ["java", "-cp", "target/classes:target/dependency/*", "Main"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Java."""
+        # Skip separate build for Docker since compile is done in get_run_command
+        if self._use_docker():
+            return None
         return ["mvn", "compile", "-q"]
 
     def extract_build_errors(self, stdout: str, stderr: str) -> List[str]:

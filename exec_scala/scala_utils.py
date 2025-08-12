@@ -98,7 +98,8 @@ object Main {{
 
     def get_run_command(self) -> List[str]:
         """Get command to run Scala code."""
-        return ["sbt", "-batch", "-error", "run"]
+        # Note: Don't use -error flag for run as it suppresses program output
+        return ["sbt", "-batch", "run"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Scala."""
@@ -159,8 +160,9 @@ object Main {{
                 return Result(success=False, errors=errors)
             
             # Then, run the Scala application
+            # Note: Don't use -error flag for run as it suppresses program output
             run_result = subprocess.run(
-                ["sbt", "-batch", "-error", "run"],
+                ["sbt", "-batch", "run"],
                 cwd=code_path,
                 capture_output=True,
                 text=True,
@@ -170,11 +172,18 @@ object Main {{
             )
             
             # Extract actual output from SBT output
-            # SBT adds [info] and other tags, we need to filter those
+            # When SBT runs in fork mode, it prefixes program output with "[info] "
             output_lines = []
             for line in run_result.stdout.split("\n"):
-                # Skip SBT info/warning lines
-                if not line.startswith("[") and line.strip():
+                # Check if this is program output prefixed with [info]
+                if line.startswith("[info] ") and not any(x in line for x in [
+                    "welcome to sbt", "loading", "compiling", "running (fork)", 
+                    "done compiling", "Total time", "set current project"
+                ]):
+                    # Extract the actual output after "[info] "
+                    output_lines.append(line[7:])  # Remove "[info] " prefix
+                elif not line.startswith("[") and line.strip():
+                    # Non-prefixed output (shouldn't happen in fork mode but just in case)
                     output_lines.append(line)
             
             clean_output = "\n".join(output_lines)

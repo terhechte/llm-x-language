@@ -77,7 +77,12 @@ class ZigUtils(BaseLanguageUtils):
 
     def get_run_command(self) -> List[str]:
         """Get command to run Zig code."""
-        return ["./main"]
+        # In Docker mode, we need to build first since the container is fresh
+        if self._use_docker():
+            # Build and run in one command
+            return ["bash", "-c", "zig build-exe src/main.zig -femit-bin=main && ./main"]
+        else:
+            return ["./main"]
 
     def get_build_command(self) -> Optional[List[str]]:
         """Get build command for Zig."""

@@ -26,7 +26,7 @@ COPY CMakeLists.txt ./
 RUN echo '#include <iostream>\nint main() { std::cout << "Hello World" << std::endl; return 0; }' > src/main.cpp && \
     cmake . && \
     make && \
-    rm -f src/main.cpp CMakeCache.txt Makefile cmake_install.cmake CMakeFiles -rf
+    rm -f src/main.cpp main CMakeCache.txt Makefile cmake_install.cmake CMakeFiles -rf
 
 # Default command
 CMD ["./main"]

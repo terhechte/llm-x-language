@@ -201,38 +201,77 @@ public static class Program
         """
         Prepare C# code for TaskCall execution by wrapping it with input handling.
         """
+        import re
+        
         # Escape the input for C# string literal
         # Use verbatim string literals with @ prefix to handle quotes and newlines
         escaped_input = input_contents.replace('"', '""')
         
-        # Check if the code contains a static method that needs to be wrapped in a class
-        has_static_method = "public static" in code or "static string" in code
-        has_class = "class " in code
+        clean_code = code.strip()
         
-        if has_static_method and not has_class:
-            # Wrap the static method in a Program class
+        # Check if the LLM generated a class with the example method
+        class_match = re.search(r'(?:public\s+)?(?:static\s+)?class\s+(\w+)', clean_code)
+        has_utility_class = class_match and class_match.group(1) not in ['Program', 'Main']
+        
+        if has_utility_class:
+            # The LLM generated a separate class (like StringUtilities)
+            class_name = class_match.group(1)
+            
+            # Remove any existing using System; to avoid duplicates
+            clean_code_no_using = clean_code
+            if "using System;" in clean_code:
+                clean_code_no_using = clean_code.replace("using System;", "").strip()
+            
+            # Use top-level statements to call the class method
+            # This must come BEFORE the class declaration in C#
             wrapped_code = f'''
+using System;
+
+// Main execution (top-level statements must come first)
+var input = @"{escaped_input}";
+var result = {class_name}.example(input);
+Console.WriteLine(result);
+
+{clean_code_no_using}
+'''
+        else:
+            # Check if it's just a method without a class
+            has_static_method = "public static" in clean_code or "static string" in clean_code
+            has_class = "class " in clean_code
+            
+            if has_static_method and not has_class:
+                # Wrap the static method in a Program class
+                wrapped_code = f'''
+using System;
+
 public class Program
 {{
-    {code.strip()}
+    {clean_code}
     
     public static void Main(string[] args)
     {{
         var input = @"{escaped_input}";
-        var result = Example(input);
+        var result = example(input);
         Console.WriteLine(result);
     }}
 }}
 '''
-        else:
-            # For top-level programs or code with classes already
-            wrapped_code = f'''
-{code.strip()}
+            else:
+                # For code that already has proper structure
+                wrapped_code = f'''
+using System;
 
-// Main execution
-var input = @"{escaped_input}";
-var result = Example(input);
-Console.WriteLine(result);
+{clean_code}
+
+public class Program
+{{
+    public static void Main(string[] args)
+    {{
+        var input = @"{escaped_input}";
+        var result = example(input);
+        Console.WriteLine(result);
+    }}
+}}
 '''
         return self.prepare_codebase(wrapped_code)
     

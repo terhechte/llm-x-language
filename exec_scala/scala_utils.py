@@ -233,9 +233,19 @@ object Main {{
         # Escape the input contents for Scala string literal
         escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         
+        # Remove any existing object Main wrapper from the generated code
+        clean_code = code.strip()
+        if "object Main" in clean_code:
+            # Extract just the function definition from inside the object
+            # This is a simple approach - could be made more robust if needed
+            import_match = re.search(r'^(import .*\n)*', clean_code)
+            imports = import_match.group(0) if import_match else ""
+            func_match = re.search(r'def example\([^)]*\)[^{]*\{.*\}', clean_code, re.DOTALL)
+            if func_match:
+                clean_code = imports + func_match.group(0)
+        
+        # Place the generated function inside the Main object
         wrapped_code = f"""
-{code.strip()}
-
 object Main {{
   def main(args: Array[String]): Unit = {{
     val input = "{escaped_input}"
@@ -243,10 +253,7 @@ object Main {{
     println(result)
   }}
   
-  def example(input: String): String = {{
-    // This will be replaced by generated code
-    ""
-  }}
+  {clean_code.strip()}
 }}
 """
         return self.prepare_codebase(wrapped_code)

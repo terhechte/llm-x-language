@@ -177,10 +177,31 @@ pub fn main() void {{
         # Zig uses \\ for backslash and \" for quotes
         escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         
+        # Check if code already has std import
+        has_std_import = "@import(\"std\")" in code or '@import("std")' in code
+        
+        # Only add std import if not already present
+        std_import = "" if has_std_import else "const std = @import(\"std\");\n\n"
+        
+        # Fix for loop syntax for Zig 0.13
+        # Old syntax: for (input) |b, i| { ... }
+        # New syntax: for (input, 0..) |b, i| { ... }
+        def fix_for_loop(match):
+            # Extract the iterable part and the capture variables
+            full_match = match.group(0)
+            iterable = match.group(1)
+            value_var = match.group(2)
+            index_var = match.group(3)
+            return f'for ({iterable}, 0..) |{value_var}, {index_var}|'
+        
+        fixed_code = re.sub(
+            r'for\s*\(([^)]+)\)\s*\|([^,]+),\s*([^|]+)\|',
+            fix_for_loop,
+            code
+        )
+        
         wrapped_code = f"""
-const std = @import("std");
-
-{code.strip()}
+{std_import}{fixed_code.strip()}
 
 pub fn main() !void {{
     const allocator = std.heap.page_allocator;

@@ -204,19 +204,57 @@ public class Main {{
         # Escape the input contents for Java string literal
         escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         
-        wrapped_code = f"""
-{code.strip()}
+        # Parse the code to find the class name and method
+        clean_code = code.strip()
+        
+        # Check if the LLM generated a class with the example method
+        class_match = re.search(r'public\s+class\s+(\w+)', clean_code)
+        has_utils_class = class_match and class_match.group(1) != 'Main'
+        
+        if has_utils_class:
+            # The LLM generated a separate class (like Utils)
+            # We need to call ClassName.example() instead of just example()
+            class_name = class_match.group(1)
+            
+            # Only keep the class definition that contains the example method
+            # Remove any duplicate Main class if present
+            if "public class Main" in clean_code:
+                # Extract just the non-Main class
+                parts = clean_code.split("public class Main")
+                clean_code = parts[0].strip()
+            
+            # Make the Utils class non-public since it's in Main.java file
+            # Java only allows one public class per file and it must match the filename
+            clean_code_non_public = clean_code.replace(f"public class {class_name}", f"class {class_name}")
+            
+            wrapped_code = f"""
+{clean_code_non_public}
 
 public class Main {{
     public static void main(String[] args) {{
         String input = "{escaped_input}";
-        String result = example(input);
+        String result = {class_name}.example(input);
         System.out.println(result);
     }}
+}}
+"""
+        else:
+            # The LLM didn't generate a separate class or generated Main class
+            # Check if there's already an example method in Main
+            if "public class Main" in clean_code and "example" in clean_code:
+                # The code already has Main class with example method
+                # Just ensure proper structure
+                wrapped_code = clean_code
+            else:
+                # No class structure, just the method - put it inside Main
+                wrapped_code = f"""
+public class Main {{
+    {clean_code.strip()}
     
-    public static String example(String input) {{
-        // This will be replaced by generated code
-        return "";
+    public static void main(String[] args) {{
+        String input = "{escaped_input}";
+        String result = example(input);
+        System.out.println(result);
     }}
 }}
 """

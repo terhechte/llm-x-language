@@ -18,6 +18,8 @@ class CppUtils(BaseLanguageUtils):
             main_file="src/main.cpp",
             use_docker=use_docker,
         )
+        # Override docker_image since "c++" is not a valid Docker image name
+        self.docker_image = "llm-benchmark/cpp"
 
     def get_language_aliases(self) -> List[str]:
         """Return C++ language aliases."""
@@ -215,8 +217,23 @@ int main() {{
         # Escape the input contents for C++ string literal
         escaped_input = input_contents.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         
+        # Ensure necessary includes are present
+        clean_code = code.strip()
+        
+        # Check which includes are missing and add them
+        includes_to_add = []
+        if "#include <iostream>" not in clean_code:
+            includes_to_add.append("#include <iostream>")
+        if "#include <string>" not in clean_code and "std::string" in clean_code:
+            includes_to_add.append("#include <string>")
+        
+        # Add includes at the beginning if needed
+        if includes_to_add:
+            includes = "\n".join(includes_to_add) + "\n\n"
+            clean_code = includes + clean_code
+        
         wrapped_code = f"""
-{code.strip()}
+{clean_code}
 
 int main() {{
     std::string input = "{escaped_input}";

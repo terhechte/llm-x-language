@@ -238,23 +238,42 @@ public static class Program
         
         clean_code = code.strip()
         
+        # Remove all using statements from the generated code to avoid placement issues
+        # We'll add them at the top of the file properly
+        lines = clean_code.split('\n')
+        code_without_usings = []
+        for line in lines:
+            # Skip using statements and empty lines after them
+            if line.strip().startswith('using ') and line.strip().endswith(';'):
+                continue
+            # Keep all other lines
+            code_without_usings.append(line)
+        
+        # Join and clean up extra blank lines
+        clean_code_no_using = '\n'.join(code_without_usings).strip()
+        
         # Check if the LLM generated a class with the example method
-        class_match = re.search(r'(?:public\s+)?(?:static\s+)?class\s+(\w+)', clean_code)
+        class_match = re.search(r'(?:public\s+)?(?:static\s+)?class\s+(\w+)', clean_code_no_using)
         has_utility_class = class_match and class_match.group(1) not in ['Program', 'Main']
+        
+        # Standard imports that cover most common needs
+        imports = """using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;"""
+        
+        # Add JSON imports if needed
+        if "JsonSerializer" in clean_code or "JsonElement" in clean_code:
+            imports += "\nusing System.Text.Json;"
         
         if has_utility_class:
             # The LLM generated a separate class (like StringUtilities)
             class_name = class_match.group(1)
             
-            # Remove any existing using System; to avoid duplicates
-            clean_code_no_using = clean_code
-            if "using System;" in clean_code:
-                clean_code_no_using = clean_code.replace("using System;", "").strip()
-            
             # Use top-level statements to call the class method
             # This must come BEFORE the class declaration in C#
-            wrapped_code = f'''
-using System;
+            wrapped_code = f'''{imports}
 
 // Main execution (top-level statements must come first)
 var input = @"{escaped_input}";
@@ -265,17 +284,16 @@ Console.WriteLine(result);
 '''
         else:
             # Check if it's just a method without a class
-            has_static_method = "public static" in clean_code or "static string" in clean_code
-            has_class = "class " in clean_code
+            has_static_method = "public static" in clean_code_no_using or "static string" in clean_code_no_using
+            has_class = "class " in clean_code_no_using
             
             if has_static_method and not has_class:
                 # Wrap the static method in a Program class
-                wrapped_code = f'''
-using System;
+                wrapped_code = f'''{imports}
 
 public class Program
 {{
-    {clean_code}
+    {clean_code_no_using}
     
     public static void Main(string[] args)
     {{
@@ -287,10 +305,9 @@ public class Program
 '''
             else:
                 # For code that already has proper structure
-                wrapped_code = f'''
-using System;
+                wrapped_code = f'''{imports}
 
-{clean_code}
+{clean_code_no_using}
 
 public class Program
 {{

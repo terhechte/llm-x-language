@@ -12,7 +12,7 @@ import json
 
 from task import Language, load_all_tasks
 from executor import Executor
-from llm import model_info, ModelInfo
+from llm import model_info, ModelInfo, request_retry, is_openrouter_model, is_lmstudio_model
 from utils import TaskResult, Result
 
 
@@ -98,7 +98,7 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         start_time = time.time()
         
         # Log task start
-        logging.info(f"Processing {work_item.task.filename} for {work_item.model} in {work_item.language.value}")
+        logging.info(f"Processing {work_item.task.filename} for {work_item.model} in {work_item.language.value} (run={work_item.run})")
         
         # Execute the task
         executor = Executor(work_item.language)
@@ -113,9 +113,143 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         completion_tokens = Decimal(result.tokens[1])
         cost = pricing * prompt_tokens + completion * completion_tokens
         
-        # Prepare result data
+        # Check if we should retry on failure
+        if not result.result.success and work_item.run == 1:
+            # Only retry for openrouter and lmstudio models
+            if is_openrouter_model(work_item.model) or is_lmstudio_model(work_item.model):
+                logging.info(f"Task failed, attempting retry for {work_item.task.filename}")
+                
+                # Rate limit the retry call
+                if rate_limiter:
+                    rate_limiter.acquire()
+                
+                # Prepare error message for retry
+                error_msg = " ".join(result.errors) if result.errors else "Task execution failed"
+                
+                try:
+                    # Create a modified task with retry context
+                    # We'll modify the prompt to include the error feedback
+                    original_prompt = work_item.task.prompt
+                    retry_prompt = f"""I gave you this task:
+
+{original_prompt}
+
+And you generated this code:
+
+{result.code}
+
+but it failed with the following error:
+
+{error_msg}
+
+Can you please update the code so it works?"""
+                    
+                    # Create a copy of the task with the retry prompt
+                    import copy
+                    retry_task = copy.deepcopy(work_item.task)
+                    retry_task.prompt = retry_prompt
+                    
+                    # Attempt retry with error feedback
+                    retry_result = executor.call(retry_task, work_item.model, 2)
+                    
+                    # Calculate retry costs
+                    retry_cost = pricing * Decimal(retry_result.tokens[0]) + completion * Decimal(retry_result.tokens[1])
+                    
+                    # Store both original and retry results
+                    # First, return the original failed result
+                    original_result = ProcessedResult(
+                        success=True,
+                        model=work_item.model,
+                        language=work_item.language.value,
+                        task_name=work_item.task.filename,
+                        result_data={
+                            'result': result.result.success,
+                            'prompt': work_item.task.prompt,
+                            'code': result.code,
+                            'run': work_item.run,
+                            'task_type': work_item.task.__class__.__name__,
+                            'response': result.response,
+                            'output': result.output,
+                            'expected_output': result.expected_output,
+                            'errors': result.errors,
+                            'is_lang_specific': work_item.task.is_lang_specific,
+                            'mutated_code': result.mutated_code,
+                        },
+                        cost=cost,
+                        duration=duration
+                    )
+                    
+                    # Then return the retry result
+                    retry_duration = time.time() - start_time - duration
+                    retry_result_data = {
+                        'result': retry_result.result.success,
+                        'prompt': work_item.task.prompt,
+                        'code': retry_result.code,
+                        'run': 2,
+                        'task_type': work_item.task.__class__.__name__,
+                        'response': retry_result.response,
+                        'output': retry_result.output,
+                        'expected_output': retry_result.expected_output,
+                        'errors': retry_result.errors,
+                        'is_lang_specific': work_item.task.is_lang_specific,
+                        'mutated_code': retry_result.mutated_code,
+                    }
+                    
+                    logging.info(f"Retry completed for {work_item.task.filename}: {'SUCCESS' if retry_result.result.success else 'FAILURE'}")
+                    
+                    # We need to return both results, but ProcessedResult only handles one
+                    # So we'll return a list indicator in the result_data
+                    return ProcessedResult(
+                        success=True,
+                        model=work_item.model,
+                        language=work_item.language.value,
+                        task_name=work_item.task.filename,
+                        result_data={
+                            'multiple_results': True,
+                            'results': [
+                                {
+                                    'result': result.result.success,
+                                    'prompt': work_item.task.prompt,
+                                    'code': result.code,
+                                    'run': work_item.run,
+                                    'task_type': work_item.task.__class__.__name__,
+                                    'response': result.response,
+                                    'output': result.output,
+                                    'expected_output': result.expected_output,
+                                    'errors': result.errors,
+                                    'is_lang_specific': work_item.task.is_lang_specific,
+                                    'mutated_code': result.mutated_code,
+                                    'cost': cost,
+                                    'duration': duration,
+                                },
+                                {
+                                    'result': retry_result.result.success,
+                                    'prompt': work_item.task.prompt,
+                                    'code': retry_result.code,
+                                    'run': 2,
+                                    'task_type': work_item.task.__class__.__name__,
+                                    'response': retry_result.response,
+                                    'output': retry_result.output,
+                                    'expected_output': retry_result.expected_output,
+                                    'errors': retry_result.errors,
+                                    'is_lang_specific': work_item.task.is_lang_specific,
+                                    'mutated_code': retry_result.mutated_code,
+                                    'cost': retry_cost,
+                                    'duration': retry_duration,
+                                }
+                            ]
+                        },
+                        cost=cost + retry_cost,
+                        duration=duration + retry_duration
+                    )
+                    
+                except Exception as e:
+                    logging.error(f"Retry failed for {work_item.task.filename}: {str(e)}")
+                    # If retry fails, just return the original failed result
+        
+        # Prepare result data for single result
         result_data = {
-            'result': result.result.success,  # Fixed: Extract boolean from Result object
+            'result': result.result.success,
             'prompt': work_item.task.prompt,
             'code': result.code,
             'run': work_item.run,
@@ -128,7 +262,7 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
             'mutated_code': result.mutated_code,
         }
         
-        logging.info(f"Completed {work_item.task.filename}: {'SUCCESS' if result.result else 'FAILURE'} in {duration:.2f}s")
+        logging.info(f"Completed {work_item.task.filename}: {'SUCCESS' if result.result.success else 'FAILURE'} in {duration:.2f}s")
         
         return ProcessedResult(
             success=True,
@@ -228,12 +362,15 @@ def create_work_items(
                 if limit and task.filename != limit:
                     continue
                 
-                # Skip if already processed
-                if existing_results and existing_results.has_result(
-                    1, task.filename, model, language.value
-                ):
-                    logging.info(f"Skipping {task.filename} for {model}/{language.value} - already exists")
-                    continue
+                # Skip if already processed (check both run=1 and run=2)
+                if existing_results:
+                    has_run1 = existing_results.has_result(1, task.filename, model, language.value)
+                    has_run2 = existing_results.has_result(2, task.filename, model, language.value)
+                    
+                    # Skip if we have run=1 (and potentially run=2 as well)
+                    if has_run1:
+                        logging.info(f"Skipping {task.filename} for {model}/{language.value} - already exists (run=1{' and run=2' if has_run2 else ''})")
+                        continue
                 
                 work_items.append(WorkItem(
                     model=model,
@@ -364,31 +501,59 @@ def parallel_execute(
         else:
             # Process individual tasks
             for result in pool.imap_unordered(process_single_task, work_items):
-                # Create Result object to pass to add_result
-                task_result = Result(
-                    success=result.result_data['result'], 
-                    errors=result.result_data['errors']
-                )
-                
-                # Add to database (both successful and failed executions)
-                db.add_result(
-                    result=task_result,
-                    model=result.model,
-                    task_name=result.task_name,
-                    prompt=result.result_data.get('prompt', ''),
-                    code=result.result_data.get('code', ''),
-                    run=result.result_data['run'],
-                    task_type=result.result_data['task_type'],
-                    response=result.result_data.get('response', ''),
-                    output=result.result_data.get('output', ''),
-                    expected_output=result.result_data.get('expected_output', ''),
-                    language=Language(result.language),
-                    errors=result.result_data['errors'],
-                    cost=result.cost,
-                    duration=result.duration,
-                    is_lang_specific=result.result_data.get('is_lang_specific', False),
-                    mutated_code=result.result_data.get('mutated_code', ''),
-                )
+                # Check if we have multiple results (original + retry)
+                if result.result_data.get('multiple_results'):
+                    # Process each result separately
+                    for res_data in result.result_data['results']:
+                        task_result = Result(
+                            success=res_data['result'], 
+                            errors=res_data['errors']
+                        )
+                        
+                        db.add_result(
+                            result=task_result,
+                            model=result.model,
+                            task_name=result.task_name,
+                            prompt=res_data.get('prompt', ''),
+                            code=res_data.get('code', ''),
+                            run=res_data['run'],
+                            task_type=res_data['task_type'],
+                            response=res_data.get('response', ''),
+                            output=res_data.get('output', ''),
+                            expected_output=res_data.get('expected_output', ''),
+                            language=Language(result.language),
+                            errors=res_data['errors'],
+                            cost=res_data.get('cost', result.cost),
+                            duration=res_data.get('duration', result.duration),
+                            is_lang_specific=res_data.get('is_lang_specific', False),
+                            mutated_code=res_data.get('mutated_code', ''),
+                        )
+                else:
+                    # Single result
+                    task_result = Result(
+                        success=result.result_data['result'], 
+                        errors=result.result_data['errors']
+                    )
+                    
+                    # Add to database (both successful and failed executions)
+                    db.add_result(
+                        result=task_result,
+                        model=result.model,
+                        task_name=result.task_name,
+                        prompt=result.result_data.get('prompt', ''),
+                        code=result.result_data.get('code', ''),
+                        run=result.result_data['run'],
+                        task_type=result.result_data['task_type'],
+                        response=result.result_data.get('response', ''),
+                        output=result.result_data.get('output', ''),
+                        expected_output=result.result_data.get('expected_output', ''),
+                        language=Language(result.language),
+                        errors=result.result_data['errors'],
+                        cost=result.cost,
+                        duration=result.duration,
+                        is_lang_specific=result.result_data.get('is_lang_specific', False),
+                        mutated_code=result.result_data.get('mutated_code', ''),
+                    )
                 
                 # Accumulate costs
                 key = (result.model, result.language)

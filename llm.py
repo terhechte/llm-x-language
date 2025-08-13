@@ -80,6 +80,44 @@ def request(query: str, model: str, language: str) -> tuple[str, int, int]:
         raise ValueError(f"Unknown model: {model}")
 
 
+def request_retry(original_prompt: str, generated_code: str, error_message: str, model: str, language: str) -> tuple[str, int, int]:
+    """
+    Request a retry from the LLM with error feedback.
+    Only works with openrouter and lmstudio providers.
+    
+    Args:
+        original_prompt: The original task prompt
+        generated_code: The code that was generated but failed
+        error_message: The error message from the failed attempt
+        model: The model to use for the retry
+        language: The programming language
+        
+    Returns:
+        Tuple of (response, prompt_tokens, completion_tokens)
+    """
+    # Only support openrouter and lmstudio models
+    if not (is_openrouter_model(model) or is_lmstudio_model(model)):
+        raise ValueError(f"Retry not supported for model: {model}")
+    
+    # Construct the retry prompt
+    retry_prompt = f"""I gave you this task:
+
+{original_prompt}
+
+And you generated this code:
+
+{generated_code}
+
+but it failed with the following error:
+
+{error_message}
+
+Can you please update the code so it works?"""
+    
+    # Make the retry request using the standard request function
+    return request(retry_prompt, model, language)
+
+
 def model_info(models: list[str]) -> dict[str, ModelInfo]:
     openrouter_models = [
         (m, replace_openrouter_model(m)) for m in models if is_openrouter_model(m)

@@ -164,9 +164,14 @@ class ZigUtils(BaseLanguageUtils):
         """
         Override prepare_codebase to ensure Zig code always has a main function.
         """
-        # Check if code already has a main function
-        if "pub fn main" in code:
-            # Code already has main, use parent's prepare_codebase
+        import re
+        
+        # Use regex to detect main function more accurately
+        # This pattern matches pub fn main with flexible formatting and return types
+        main_function_pattern = r'^\s*pub\s+fn\s+main\s*\([^)]*\)\s*.*?\s*\{'
+        if re.search(main_function_pattern, code, re.MULTILINE):
+            # Code already has main function, use parent's prepare_codebase
+            logging.debug("Zig: main function detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Add empty main function for compilation

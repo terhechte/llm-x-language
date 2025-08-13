@@ -237,14 +237,21 @@ done
         """
         Override prepare_codebase to ensure Scala code always has a Main object.
         """
-        # Check if code already has a Main object
-        if "object Main" in code:
+        import re
+        
+        # Use regex to detect Main object more accurately (handles extends App, etc.)
+        # This pattern matches object Main with optional extends clause
+        main_object_pattern = r'^\s*object\s+Main\s*(\s+extends\s+[\w\s\[\],]+)?\s*\{'
+        if re.search(main_object_pattern, code, re.MULTILINE):
             # Code already has Main object, use parent's prepare_codebase
+            logging.debug("Scala: Main object detected, using code as-is")
             return super().prepare_codebase(code)
         
-        # Check if code has a main method but no Main object
-        if "def main(args: Array[String])" in code:
-            # Already handled in extract_language_code
+        # Check if code has a main method with more flexible pattern
+        main_method_pattern = r'^\s*def\s+main\s*\(\s*args\s*:\s*Array\s*\[\s*String\s*\]\s*\)'
+        if re.search(main_method_pattern, code, re.MULTILINE):
+            # Has main method but possibly not in Main object - already handled in extract_language_code
+            logging.debug("Scala: main method detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Split code into imports and the rest

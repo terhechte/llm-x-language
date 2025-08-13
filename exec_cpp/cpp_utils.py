@@ -204,9 +204,14 @@ using namespace std;
         """
         Override prepare_codebase to ensure C++ code always has a main function.
         """
-        # Check if code already has a main function
-        if "int main" in code or "main(" in code:
-            # Code already has main, use parent's prepare_codebase
+        import re
+        
+        # Use regex to detect main function more accurately
+        # This pattern matches int main with flexible formatting and parameters
+        main_function_pattern = r'^\s*int\s+main\s*\([^)]*\)\s*\{'
+        if re.search(main_function_pattern, code, re.MULTILINE):
+            # Code already has main function, use parent's prepare_codebase
+            logging.debug("C++: main function detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Add empty main function for type checking

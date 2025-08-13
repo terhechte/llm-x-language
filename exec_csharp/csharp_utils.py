@@ -208,14 +208,21 @@ class CSharpUtils(BaseLanguageUtils):
         """
         import re
         
-        # Check what structure the code has
-        has_namespace = "namespace " in code
-        has_program_class = "class Program" in code
-        has_main = "static void Main" in code or "static async Task Main" in code
-        has_any_class = "class " in code
+        # Check what structure the code has using more robust regex patterns
+        has_namespace = bool(re.search(r'^\s*namespace\s+\w+', code, re.MULTILINE))
+        
+        # More robust Program class detection
+        program_class_pattern = r'^\s*(public\s+)?(static\s+)?(partial\s+)?class\s+Program\s*(\s*:\s*[\w\s,]+)?\s*\{'
+        has_program_class = bool(re.search(program_class_pattern, code, re.MULTILINE))
+        
+        # More robust Main method detection
+        main_method_pattern = r'^\s*(public\s+)?static\s+(async\s+)?(Task|void)\s+Main\s*\('
+        has_main = bool(re.search(main_method_pattern, code, re.MULTILINE))
+        
+        has_any_class = bool(re.search(r'^\s*(public\s+)?(static\s+)?(partial\s+)?class\s+', code, re.MULTILINE))
         
         # Check for custom utility classes (like StringUtilities)
-        class_match = re.search(r'(?:public\s+)?(?:static\s+)?class\s+(\w+)', code)
+        class_match = re.search(r'^\s*(?:public\s+)?(?:static\s+)?(?:partial\s+)?class\s+(\w+)', code, re.MULTILINE)
         has_utility_class = class_match and class_match.group(1) not in ['Program', 'Main']
         
         # Split code into using statements and the rest
@@ -237,6 +244,7 @@ class CSharpUtils(BaseLanguageUtils):
         # Decide how to structure the code
         if has_program_class and has_main:
             # Already has proper structure
+            logging.debug("C#: Program class with Main method detected, using code as-is")
             return super().prepare_codebase(code)
         elif has_utility_class and not has_main:
             # Has a utility class but no Main - use top-level statements

@@ -157,12 +157,17 @@ fun main() {{
         Override prepare_codebase to ensure Kotlin code always has a main function.
         This is needed because Kotlin Native requires a main function to compile.
         """
+        import re
+        
         # Log the incoming code for debugging
         logging.debug(f"Kotlin prepare_codebase received code: {repr(code)}")
         
-        # Check if code already has a main function
-        if "fun main" in code:
-            # Code already has main, use parent's prepare_codebase
+        # Use regex to detect main function more accurately
+        # This pattern matches fun main with flexible formatting and parameters
+        main_function_pattern = r'^\s*fun\s+main\s*\([^)]*\)\s*[:{]'
+        if re.search(main_function_pattern, code, re.MULTILINE):
+            # Code already has main function, use parent's prepare_codebase
+            logging.debug("Kotlin: main function detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Add imports and empty main function for type checking

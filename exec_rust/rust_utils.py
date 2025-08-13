@@ -149,9 +149,14 @@ class RustUtils(BaseLanguageUtils):
         Override prepare_codebase to ensure Rust code always has a main function.
         This is needed because Rust requires a main function to compile.
         """
-        # Check if code already has a main function
-        if "fn main" in code:
-            # Code already has main, use parent's prepare_codebase
+        import re
+        
+        # Use regex to detect main function more accurately
+        # This pattern matches fn main with optional pub, return type, and flexible formatting
+        main_function_pattern = r'^\s*(pub\s+)?fn\s+main\s*\([^)]*\)\s*(->\s*[^{]+)?\s*\{'
+        if re.search(main_function_pattern, code, re.MULTILINE):
+            # Code already has main function, use parent's prepare_codebase
+            logging.debug("Rust: main function detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Add empty main function for type checking

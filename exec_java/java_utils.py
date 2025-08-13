@@ -191,14 +191,21 @@ public class Main {{
         """
         Override prepare_codebase to ensure Java code always has a Main class.
         """
-        # Check if code already has a Main class
-        if "class Main" in code or "public class Main" in code:
+        import re
+        
+        # Use regex to detect Main class more accurately (avoid false positives from comments)
+        # This pattern matches class Main with optional modifiers, avoiding comment lines
+        main_class_pattern = r'^\s*(public\s+)?class\s+Main\s*(\s+extends\s+\w+)?(\s+implements\s+[\w\s,]+)?\s*\{'
+        if re.search(main_class_pattern, code, re.MULTILINE):
             # Code already has Main class, use parent's prepare_codebase
+            logging.debug("Java: Main class detected, using code as-is")
             return super().prepare_codebase(code)
         
-        # Check if code has a main method but no Main class
-        if "public static void main" in code:
-            # Already handled in extract_language_code
+        # Check if code has a main method with more flexible pattern
+        main_method_pattern = r'^\s*(public\s+)?static\s+void\s+main\s*\(\s*String\s*\[\s*\]\s*\w+\s*\)'
+        if re.search(main_method_pattern, code, re.MULTILINE):
+            # Has main method but possibly not in Main class - already handled in extract_language_code
+            logging.debug("Java: main method detected, using code as-is")
             return super().prepare_codebase(code)
         
         # Split code into imports and the rest

@@ -62,3 +62,46 @@ python main.py --model_name "gpt-4o"
 ```
 
 See [DOCKER.md](DOCKER.md) for detailed Docker documentation.
+
+## Database Management
+
+The `dbtool.py` utility provides comprehensive database management capabilities for benchmark results.
+
+### Available Operations
+
+```bash
+# Remove all results for a specific model
+python dbtool.py remove-model results/run_2025_01_15.json "gpt-4o"
+
+# Remove all results for a specific language
+python dbtool.py remove-language results/run_2025_01_15.json python
+
+# Remove all results for a specific task (all runs)
+python dbtool.py remove-task results/run_2025_01_15.json "task_001"
+
+# Remove results for a specific language and task type
+python dbtool.py remove-lang-type results/run_2025_01_15.json python call
+
+# Merge multiple databases into one
+# Priority "first" keeps first occurrence of duplicates (default)
+python dbtool.py merge -o results/merged.json results/db1.json results/db2.json results/db3.json
+
+# Priority "last" overwrites with last occurrence
+python dbtool.py merge -o results/merged.json -p last results/db1.json results/db2.json
+
+# List available items in database
+python dbtool.py list results/database.json models      # List all models
+python dbtool.py list results/database.json languages   # List all languages
+python dbtool.py list results/database.json tasks       # List all tasks
+python dbtool.py list results/database.json task-types  # List all task types
+
+# View database statistics
+python dbtool.py stats results/database.json
+```
+
+### Use Cases
+
+- **Cleaning data**: Remove failed or incomplete test runs for specific models
+- **Filtering results**: Extract results for specific languages or task types
+- **Merging runs**: Combine multiple benchmark runs into a single analysis file
+- **Data exploration**: List and analyze what's in your result databases

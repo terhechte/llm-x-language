@@ -105,22 +105,23 @@ def get_models(specific_model: Optional[str] = None) -> List[str]:
         return [specific_model]
 
     return [
-        "openrouter/openai/gpt-oss-20b",
-        "openrouter/z-ai/glm-4-32b",
+        #"openrouter/openai/gpt-oss-20b",
+        #"openrouter/z-ai/glm-4-32b",
         #"openrouter/mistralai/devstral-medium",
-        #"openrouter/google/gemini-2.5-pro",
+        # "openrouter/google/gemini-2.5-pro",
         #"openrouter/qwen/qwen3-30b-a3b-instruct-2507",
         #"openrouter/z-ai/glm-4.5",
         #"openrouter/z-ai/glm-4.5-air",
         #"openrouter/qwen/qwen3-235b-a22b-thinking-2507",
         #"openrouter/qwen/qwen3-235b-a22b-2507",
         #"openrouter/moonshotai/kimi-k2",
-        #"openrouter/anthropic/claude-sonnet-4",
+        "openrouter/anthropic/claude-sonnet-4",
         #"openrouter/mistralai/codestral-2508",
         #"openrouter/qwen/qwen3-coder",
         #"openrouter/google/gemini-2.5-flash-lite",
         "openrouter/openai/gpt-5",
-        "openrouter/openai/gpt-oss-120b",
+        "openrouter/x-ai/grok-4"
+        #"openrouter/openai/gpt-oss-120b",
     ]
 
     # Default model list (same as main.py)

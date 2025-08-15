@@ -214,6 +214,9 @@ def get_languages(specific_language: Optional[str] = None) -> List[Language]:
 
 
 def main():
+    if os.environ.get('LLM_BENCHMARK_USE_DOCKER', '').lower() == 'false':
+        print('Docker is disabled. Please set LLM_BENCHMARK_USE_DOCKER=true to enable it.')
+        sys.exit(1)
     """Main entry point for parallel benchmark execution."""
     # Set decimal precision
     getcontext().prec = 16

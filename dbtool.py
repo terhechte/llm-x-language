@@ -6,6 +6,7 @@ Provides utilities to filter, remove, and merge result databases.
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import List, Optional
 from db import ResultDB, TestResult
@@ -98,6 +99,101 @@ class DBTool:
         else:
             print(f"No results found for task '{task_name}'")
         return removed
+    
+    def remove_by_error_pattern(self, language: str, error_pattern: str, confirm: bool = True, flag_only: bool = False) -> int:
+        """Remove or flag all results for a specific language where errors match a regex pattern.
+        
+        Args:
+            language: Language to filter (python, rust, typescript, etc.)
+            error_pattern: Regular expression pattern to match in errors
+            confirm: Whether to ask for confirmation before deletion/flagging
+            flag_only: If True, flag entries with retry=True instead of removing them
+            
+        Returns:
+            Number of results removed or flagged
+        """
+        import sys
+        
+        # Compile the regex pattern
+        try:
+            pattern = re.compile(error_pattern, re.IGNORECASE | re.MULTILINE)
+        except re.error as e:
+            print(f"Invalid regex pattern: {e}")
+            return 0
+        
+        # Find matching results
+        matching_results = []
+        for result in self.db.results:
+            # Check if language matches
+            if result.language.lower() != language.lower():
+                continue
+            
+            # Check if any error matches the pattern
+            if result.errors:
+                for error in result.errors:
+                    if pattern.search(error):
+                        matching_results.append(result)
+                        break
+        
+        # Show statistics
+        total_for_lang = sum(1 for r in self.db.results if r.language.lower() == language.lower())
+        action = "Flag" if flag_only else "Remove"
+        print(f"\n=== {action} by Error Pattern ===")
+        print(f"Language: {language}")
+        print(f"Pattern: {error_pattern}")
+        print(f"Total entries for {language}: {total_for_lang}")
+        print(f"Entries matching pattern: {len(matching_results)}")
+        
+        if not matching_results:
+            print("No matching entries found.")
+            return 0
+        
+        # Show some examples
+        print(f"\nExample matches (showing first 3):")
+        for i, result in enumerate(matching_results[:3]):
+            print(f"\n  [{i+1}] Model: {result.model}, Task: {result.task_name}")
+            # Show the matching error (truncated)
+            for error in result.errors:
+                if pattern.search(error):
+                    error_preview = error[:200] + "..." if len(error) > 200 else error
+                    print(f"      Error: {error_preview}")
+                    break
+        
+        if len(matching_results) > 3:
+            print(f"\n  ... and {len(matching_results) - 3} more entries")
+        
+        # Confirm action
+        if confirm:
+            action_verb = "flag for retry" if flag_only else "remove"
+            print(f"\nWARNING: This will {action_verb} {len(matching_results)} entries in the database.")
+            response = input("Do you want to proceed? (y/N): ").strip().lower()
+            if response != 'y':
+                print("Operation cancelled.")
+                return 0
+        
+        if flag_only:
+            # Flag matching results with retry=True
+            flagged = 0
+            for result in matching_results:
+                result.retry = True
+                flagged += 1
+            
+            if flagged > 0:
+                self.db.save_db()
+                print(f"\nSuccessfully flagged {flagged} entries for retry.")
+            
+            return flagged
+        else:
+            # Remove matching results
+            original_count = len(self.db.results)
+            self.db.results = [r for r in self.db.results if r not in matching_results]
+            
+            removed = original_count - len(self.db.results)
+            if removed > 0:
+                self.db.save_db()
+                print(f"\nSuccessfully removed {removed} entries.")
+            
+            return removed
     
     def remove_language_task_type(self, language: str, task_type: str) -> int:
         """Remove all results for a specific language and task type combination.
@@ -327,6 +423,17 @@ def main():
     remove_lang_type_parser.add_argument("language", help="Language to filter")
     remove_lang_type_parser.add_argument("task_type", help="Task type (call, check, contains, run)")
     
+    # Remove by error pattern command
+    remove_error_parser = subparsers.add_parser(
+        "remove-by-error",
+        help="Remove or flag results for a language where errors match a regex pattern"
+    )
+    remove_error_parser.add_argument("db", help="Database file path")
+    remove_error_parser.add_argument("language", help="Language to filter")
+    remove_error_parser.add_argument("pattern", help="Regex pattern to match in errors")
+    remove_error_parser.add_argument("--no-confirm", action="store_true", help="Skip confirmation prompt")
+    remove_error_parser.add_argument("--flag", action="store_true", help="Flag entries with retry=True instead of removing them")
+    
     # Merge command
     merge_parser = subparsers.add_parser("merge", help="Merge multiple databases")
     merge_parser.add_argument("-o", "--output", required=True, help="Output database file path")
@@ -378,6 +485,10 @@ def main():
     elif args.command == "remove-lang-type":
         tool = DBTool(args.db)
         tool.remove_language_task_type(args.language, args.task_type)
+    
+    elif args.command == "remove-by-error":
+        tool = DBTool(args.db)
+        tool.remove_by_error_pattern(args.language, args.pattern, confirm=not args.no_confirm, flag_only=args.flag)
     
     elif args.command == "merge":
         merge_databases(args.inputs, args.output, args.priority)

@@ -288,6 +288,22 @@ class BaseLanguageUtils(ABC):
             docker_stop_rm(container_id, force=True)
             raise subprocess.SubprocessError(result.stderr.strip())
 
+        # Ensure filesystem sync to prevent "file modified during build" errors
+        # This is particularly important for Swift and other compiled languages
+        sync_result = subprocess.run(
+            ["docker", "exec", container_id, "sync"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False
+        )
+        if sync_result.returncode != 0:
+            # Log but don't fail - sync might not be available in all containers
+            logging.debug("Sync command failed (non-fatal): %s", sync_result.stderr)
+        
+        # Add a small delay to ensure filesystem operations are complete
+        time.sleep(0.1)
+
         # Language-specific prebuilt artifacts (e.g., Rust target)
         if self.language.lower() == "rust":
             # If the host has a pre-warmed target directory, copy it in once

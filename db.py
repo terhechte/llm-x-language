@@ -29,9 +29,13 @@ class TestResult:
     duration: float
     is_lang_specific: bool
     mutated_code: str = ""  # Code after language-specific mutations
+    retry: bool = False  # Flag to indicate if this test should be retried
 
     @classmethod
     def from_dict(cls, data: dict) -> "TestResult":
+        # Handle optional retry field for backward compatibility
+        if 'retry' not in data:
+            data['retry'] = False
         return cls(**data)
 
 
@@ -117,6 +121,7 @@ class ResultDB:
         duration: float,
         is_lang_specific: bool,
         mutated_code: str = "",
+        retry: bool = False,
     ) -> None:
         """Add a new test result to the database"""
         test_result = TestResult(
@@ -136,6 +141,7 @@ class ResultDB:
             duration=duration,
             is_lang_specific=is_lang_specific,
             mutated_code=mutated_code,
+            retry=retry,
         )
         self.results.append(test_result)
         self.save_db()

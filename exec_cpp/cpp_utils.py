@@ -36,6 +36,19 @@ class CppUtils(BaseLanguageUtils):
         
         cpp_code = "\n".join(matching_code)
         
+        # Fix common include mistakes - convert quoted includes to angle bracket includes
+        # for system libraries that LLMs often get wrong
+        include_fixes = [
+            (r'#include\s+"nlohmann/json\.hpp"', '#include <nlohmann/json.hpp>'),
+            (r'#include\s+"curl/curl\.h"', '#include <curl/curl.h>'),
+            (r'#include\s+"httplib\.h"', '#include <httplib.h>'),
+            (r'#include\s+"boost/date_time\.hpp"', '#include <boost/date_time.hpp>'),
+            (r'#include\s+"pthread\.h"', '#include <pthread.h>'),
+        ]
+        
+        for pattern, replacement in include_fixes:
+            cpp_code = re.sub(pattern, replacement, cpp_code)
+        
         # Add necessary includes if not present
         if "#include" not in cpp_code:
             includes = """#include <iostream>

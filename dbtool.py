@@ -239,6 +239,102 @@ class DBTool:
         task_types = set(r.task_type for r in self.db.results)
         return sorted(list(task_types))
     
+    def retry_task(self, task_name: str, confirm: bool = True) -> tuple[int, int]:
+        """Set retry flag for all entries of a particular task and remove higher runs.
+        
+        For each model/language combination with multiple runs for this task:
+        - Keep run 1 and set retry=True
+        - Remove all higher runs (run 2, run 3, etc.)
+        
+        Args:
+            task_name: Name of the task (e.g., "simple.json")
+            confirm: Whether to ask for confirmation
+            
+        Returns:
+            Tuple of (number flagged for retry, number removed)
+        """
+        from collections import defaultdict
+        
+        # Extract just the filename if it includes a path
+        task_filename = Path(task_name).name
+        
+        # Find all results for this task
+        task_results = [r for r in self.db.results if Path(r.task_name).name == task_filename]
+        
+        if not task_results:
+            print(f"No results found for task '{task_filename}'")
+            return 0, 0
+        
+        # Group results by model+language
+        grouped = defaultdict(list)
+        for result in task_results:
+            key = (result.model, result.language)
+            grouped[key].append(result)
+        
+        # Identify what to flag and what to remove
+        to_flag = []
+        to_remove = []
+        
+        for (model, lang), results in grouped.items():
+            # Sort by run number
+            results.sort(key=lambda r: r.run)
+            
+            if len(results) > 0:
+                # Keep run 1 (or lowest run) and flag it
+                to_flag.append(results[0])
+                # Remove all higher runs
+                to_remove.extend(results[1:])
+        
+        # Show statistics
+        print(f"\n=== Retry Task: {task_filename} ===")
+        print(f"Total entries for this task: {len(task_results)}")
+        print(f"Unique model/language combinations: {len(grouped)}")
+        print(f"Entries to flag for retry: {len(to_flag)}")
+        print(f"Entries to remove (higher runs): {len(to_remove)}")
+        
+        if len(to_flag) == 0 and len(to_remove) == 0:
+            print("No changes needed.")
+            return 0, 0
+        
+        # Show examples
+        if to_flag:
+            print(f"\nExample entries to flag (showing first 3):")
+            for i, result in enumerate(to_flag[:3]):
+                print(f"  [{i+1}] {result.model} / {result.language} / run {result.run}")
+            if len(to_flag) > 3:
+                print(f"  ... and {len(to_flag) - 3} more")
+        
+        if to_remove:
+            print(f"\nExample entries to remove (showing first 3):")
+            for i, result in enumerate(to_remove[:3]):
+                print(f"  [{i+1}] {result.model} / {result.language} / run {result.run}")
+            if len(to_remove) > 3:
+                print(f"  ... and {len(to_remove) - 3} more")
+        
+        # Confirm action
+        if confirm:
+            print(f"\nWARNING: This will:")
+            print(f"  - Flag {len(to_flag)} entries for retry")
+            print(f"  - Remove {len(to_remove)} entries (higher runs)")
+            response = input("Do you want to proceed? (y/N): ").strip().lower()
+            if response != 'y':
+                print("Operation cancelled.")
+                return 0, 0
+        
+        # Apply changes
+        # Flag entries for retry
+        for result in to_flag:
+            result.retry = True
+        
+        # Remove higher runs
+        self.db.results = [r for r in self.db.results if r not in to_remove]
+        
+        # Save changes
+        self.db.save_db()
+        print(f"\nSuccessfully flagged {len(to_flag)} entries for retry and removed {len(to_remove)} higher runs.")
+        
+        return len(to_flag), len(to_remove)
+    
     def stats(self):
         """Print statistics about the database."""
         print("\n=== Database Statistics ===")
@@ -463,6 +559,12 @@ def main():
     tasks_parser.add_argument("db", help="Database file path")
     tasks_parser.add_argument("-m", "--model", help="Filter results by specific model", default=None)
     
+    # Retry task command - flag a task for retry and remove higher runs
+    retry_task_parser = subparsers.add_parser("retry-task", help="Flag all entries of a task for retry and remove higher runs")
+    retry_task_parser.add_argument("db", help="Database file path")
+    retry_task_parser.add_argument("task", help="Task name to retry (e.g., 'simple.json')")
+    retry_task_parser.add_argument("--no-confirm", action="store_true", help="Skip confirmation prompt")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -523,6 +625,10 @@ def main():
     elif args.command == "tasks":
         tool = DBTool(args.db)
         tool.show_task_response_lengths(model_filter=args.model)
+    
+    elif args.command == "retry-task":
+        tool = DBTool(args.db)
+        tool.retry_task(args.task, confirm=not args.no_confirm)
 
 
 if __name__ == "__main__":

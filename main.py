@@ -46,6 +46,28 @@ def execute_all_tasks(
         if limit and task.filename != limit:
             continue
 
+        # Check if there's a result that needs retry
+        retry_result = db.get_result_for_retry(run, task.filename, model, language.value)
+        if retry_result:
+            print(f"Retrying task: {task.filename} (using existing LLM response)")
+            current_time = time.time()
+            # Call executor with existing code and response for retry
+            result = executor.call(task, model, run, retry_result.code, retry_result.response)
+            duration = time.time() - current_time
+            
+            # Update the existing result after retry
+            db.update_result_after_retry(
+                run=run,
+                task_name=task.filename,
+                model=model,
+                language=language.value,
+                new_result=result.result,
+                new_output=result.output,
+                new_errors=result.errors,
+                duration=duration
+            )
+            continue
+
         if db.has_result(run, task.filename, model, language.value):
             print(f"Skipping task: {task.filename} because it already exists")
             continue

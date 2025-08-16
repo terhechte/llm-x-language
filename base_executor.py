@@ -428,30 +428,39 @@ class BaseLanguageUtils(ABC):
 
 # Common task execution functions that use the language utilities
 
-def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtils) -> TaskResult:
+def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtils, existing_code: str = None, existing_response: str = None) -> TaskResult:
     """
     Common implementation for executing a TaskRun.
+    If existing_code and existing_response are provided (for retry), skip LLM query.
     """
     process_manager = ProcessManager()
     allocated_port = None
     
-    try:
-        r = utils.query_code(task.prompt, model)
-    except (ValueError, RuntimeError, TimeoutError) as e:
-        return TaskResult.error(run, [str(e)])
-    if not r:
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Failed to query code"],
-            response="",
-            code="",
-            output="",
-            expected_output=task.expected_output,
-            tokens=(0, 0),
-            mutated_code="",
-        )
-    code, response, prompt_tokens, completion_tokens = r
+    if existing_code is not None and existing_response is not None:
+        # Retry case: use existing code and response
+        code = existing_code
+        response = existing_response
+        prompt_tokens = 0
+        completion_tokens = 0
+    else:
+        # Normal case: query LLM
+        try:
+            r = utils.query_code(task.prompt, model)
+        except (ValueError, RuntimeError, TimeoutError) as e:
+            return TaskResult.error(run, [str(e)])
+        if not r:
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Failed to query code"],
+                response="",
+                code="",
+                output="",
+                expected_output=task.expected_output,
+                tokens=(0, 0),
+                mutated_code="",
+            )
+        code, response, prompt_tokens, completion_tokens = r
     
     code_path = utils.prepare_codebase(code)
     
@@ -641,27 +650,36 @@ def exec_run_common(task: TaskRun, model: str, run: int, utils: BaseLanguageUtil
             port_manager.release_port(allocated_port)
 
 
-def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUtils) -> TaskResult:
+def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUtils, existing_code: str = None, existing_response: str = None) -> TaskResult:
     """
     Common implementation for executing a TaskCall.
+    If existing_code and existing_response are provided (for retry), skip LLM query.
     """
-    try:
-        r = utils.query_code(task.prompt, model)
-    except (ValueError, RuntimeError, TimeoutError) as e:
-        return TaskResult.error(run, [str(e)])
-    if not r:
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Failed to query code"],
-            response="",
-            code="",
-            output="",
-            expected_output=task.expected_output,
-            tokens=(0, 0),
-            mutated_code="",
-        )
-    code, response, prompt_tokens, completion_tokens = r
+    if existing_code is not None and existing_response is not None:
+        # Retry case: use existing code and response
+        code = existing_code
+        response = existing_response
+        prompt_tokens = 0
+        completion_tokens = 0
+    else:
+        # Normal case: query LLM
+        try:
+            r = utils.query_code(task.prompt, model)
+        except (ValueError, RuntimeError, TimeoutError) as e:
+            return TaskResult.error(run, [str(e)])
+        if not r:
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Failed to query code"],
+                response="",
+                code="",
+                output="",
+                expected_output=task.expected_output,
+                tokens=(0, 0),
+                mutated_code="",
+            )
+        code, response, prompt_tokens, completion_tokens = r
     
     # Use the prepare_codebase_for_call method (which may be overridden)
     code_path = utils.prepare_codebase_for_call(code, task.input_contents)
@@ -753,27 +771,36 @@ def exec_call_common(task: TaskCall, model: str, run: int, utils: BaseLanguageUt
     )
 
 
-def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguageUtils) -> TaskResult:
+def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguageUtils, existing_code: str = None, existing_response: str = None) -> TaskResult:
     """
     Common implementation for executing a TaskCheck.
+    If existing_code and existing_response are provided (for retry), skip LLM query.
     """
-    try:
-        r = utils.query_code(task.prompt, model)
-    except (ValueError, RuntimeError, TimeoutError) as e:
-        return TaskResult.error(run, [str(e)])
-    if not r:
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Failed to query code"],
-            response="",
-            code="",
-            output="",
-            expected_output="Code should validate successfully",
-            tokens=(0, 0),
-            mutated_code="",
-        )
-    code, response, prompt_tokens, completion_tokens = r
+    if existing_code is not None and existing_response is not None:
+        # Retry case: use existing code and response
+        code = existing_code
+        response = existing_response
+        prompt_tokens = 0
+        completion_tokens = 0
+    else:
+        # Normal case: query LLM
+        try:
+            r = utils.query_code(task.prompt, model)
+        except (ValueError, RuntimeError, TimeoutError) as e:
+            return TaskResult.error(run, [str(e)])
+        if not r:
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Failed to query code"],
+                response="",
+                code="",
+                output="",
+                expected_output="Code should validate successfully",
+                tokens=(0, 0),
+                mutated_code="",
+            )
+        code, response, prompt_tokens, completion_tokens = r
     
     code_path = utils.prepare_codebase(code)
     
@@ -809,32 +836,40 @@ def exec_check_common(task: TaskCheck, model: str, run: int, utils: BaseLanguage
     )
 
 
-def exec_contains_common(task: TaskContains, model: str, run: int, utils: BaseLanguageUtils) -> TaskResult:
+def exec_contains_common(task: TaskContains, model: str, run: int, utils: BaseLanguageUtils, existing_code: str = None, existing_response: str = None) -> TaskResult:
     """
     Common implementation for executing a TaskContains.
+    If existing_response is provided (for retry), skip LLM query.
     """
     from utils import check_contains_matches
     
-    try:
-        # For contains tasks, we directly request from the LLM without extracting code
-        response, prompt_tokens, completion_tokens = request(
-            task.prompt, model, utils.language
-        )
-    except (ValueError, RuntimeError, TimeoutError) as e:
-        return TaskResult.error(run, [str(e)])
-    
-    if not response:
-        return TaskResult(
-            run=run,
-            success=False,
-            errors=["Failed to query code"],
-            response="",
-            code="",
-            output="",
-            expected_output="",
-            tokens=(0, 0),
-            mutated_code="",
-        )
+    if existing_response is not None:
+        # Retry case: use existing response
+        response = existing_response
+        prompt_tokens = 0
+        completion_tokens = 0
+    else:
+        # Normal case: query LLM
+        try:
+            # For contains tasks, we directly request from the LLM without extracting code
+            response, prompt_tokens, completion_tokens = request(
+                task.prompt, model, utils.language
+            )
+        except (ValueError, RuntimeError, TimeoutError) as e:
+            return TaskResult.error(run, [str(e)])
+        
+        if not response:
+            return TaskResult(
+                run=run,
+                success=False,
+                errors=["Failed to query code"],
+                response="",
+                code="",
+                output="",
+                expected_output="",
+                tokens=(0, 0),
+                mutated_code="",
+            )
     
     # Check if response contains expected matches
     valid_position_found = check_contains_matches(response, task.matches, task.mode)

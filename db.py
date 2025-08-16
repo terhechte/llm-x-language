@@ -209,6 +209,57 @@ class ResultDB:
             and result.language == language
             for result in self.results
         )
+    
+    def get_result_for_retry(self, run: int, task_name: str, model: str, language: str) -> TestResult | None:
+        """
+        Get a result that needs retry (has retry=True flag).
+        
+        Args:
+            run: The run number to check
+            task_name: The name of the task
+            model: The model name
+            language: The programming language
+            
+        Returns:
+            TestResult if a matching result with retry=True exists, None otherwise
+        """
+        for result in self.results:
+            if (result.run == run 
+                and result.task_name == task_name 
+                and result.model == model 
+                and result.language == language
+                and result.retry):
+                return result
+        return None
+    
+    def update_result_after_retry(self, run: int, task_name: str, model: str, language: str,
+                                 new_result, new_output: str, new_errors: List[str], duration: float) -> None:
+        """
+        Update an existing result after retry execution.
+        
+        Args:
+            run: The run number
+            task_name: The name of the task
+            model: The model name
+            language: The programming language
+            new_result: The new execution result
+            new_output: The new output from execution
+            new_errors: Any new errors from execution
+            duration: The duration of the retry execution
+        """
+        for i, result in enumerate(self.results):
+            if (result.run == run 
+                and result.task_name == task_name 
+                and result.model == model 
+                and result.language == language):
+                # Update the result
+                result.retry = False
+                result.success = new_result.success
+                result.errors = new_result.errors + new_errors
+                result.output = new_output
+                result.duration = duration
+                break
+        self.save_db()
 
     def merge_with(self, other_db: "ResultDB") -> None:
         """Merge another ResultDB instance into this one.

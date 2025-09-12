@@ -104,7 +104,7 @@ class DBTool:
         """Remove or flag all results for a specific language where errors match a regex pattern.
         
         Args:
-            language: Language to filter (python, rust, typescript, etc.)
+            language: Language to filter (python, rust, typescript, etc.) or "all" for all languages
             error_pattern: Regular expression pattern to match in errors
             confirm: Whether to ask for confirmation before deletion/flagging
             flag_only: If True, flag entries with retry=True instead of removing them
@@ -123,9 +123,12 @@ class DBTool:
         
         # Find matching results
         matching_results = []
+        language_counts = {}  # Track matches per language
+        model_counts = {}  # Track matches per model
+        
         for result in self.db.results:
-            # Check if language matches
-            if result.language.lower() != language.lower():
+            # Check if language matches (or if we're searching all)
+            if language.lower() != "all" and result.language.lower() != language.lower():
                 continue
             
             # Check if any error matches the pattern
@@ -133,16 +136,51 @@ class DBTool:
                 for error in result.errors:
                     if pattern.search(error):
                         matching_results.append(result)
+                        # Track language for statistics
+                        lang = result.language
+                        language_counts[lang] = language_counts.get(lang, 0) + 1
+                        # Track model for statistics
+                        model = result.model
+                        model_counts[model] = model_counts.get(model, 0) + 1
                         break
         
         # Show statistics
-        total_for_lang = sum(1 for r in self.db.results if r.language.lower() == language.lower())
         action = "Flag" if flag_only else "Remove"
         print(f"\n=== {action} by Error Pattern ===")
-        print(f"Language: {language}")
         print(f"Pattern: {error_pattern}")
-        print(f"Total entries for {language}: {total_for_lang}")
-        print(f"Entries matching pattern: {len(matching_results)}")
+        
+        if language.lower() == "all":
+            print(f"Language: ALL")
+            print(f"Total entries in database: {len(self.db.results)}")
+            print(f"Total entries matching pattern: {len(matching_results)}")
+            
+            if language_counts:
+                print(f"\nBreakdown by language:")
+                for lang, count in sorted(language_counts.items()):
+                    total_lang = sum(1 for r in self.db.results if r.language == lang)
+                    percentage = (count / total_lang * 100) if total_lang > 0 else 0
+                    print(f"  - {lang:<12}: {count:>4}/{total_lang:<4} entries ({percentage:>5.1f}%)")
+            
+            if model_counts:
+                print(f"\nBreakdown by model:")
+                for model, count in sorted(model_counts.items()):
+                    total_model = sum(1 for r in self.db.results if r.model == model)
+                    percentage = (count / total_model * 100) if total_model > 0 else 0
+                    print(f"  - {model:<30}: {count:>4}/{total_model:<4} entries ({percentage:>5.1f}%)")
+        else:
+            total_for_lang = sum(1 for r in self.db.results if r.language.lower() == language.lower())
+            print(f"Language: {language}")
+            print(f"Total entries for {language}: {total_for_lang}")
+            print(f"Entries matching pattern: {len(matching_results)}")
+            
+            # Show model breakdown even for specific language
+            if model_counts:
+                print(f"\nBreakdown by model for {language}:")
+                for model, count in sorted(model_counts.items()):
+                    total_model_lang = sum(1 for r in self.db.results 
+                                         if r.model == model and r.language.lower() == language.lower())
+                    percentage = (count / total_model_lang * 100) if total_model_lang > 0 else 0
+                    print(f"  - {model:<30}: {count:>4}/{total_model_lang:<4} entries ({percentage:>5.1f}%)")
         
         if not matching_results:
             print("No matching entries found.")
@@ -522,10 +560,10 @@ def main():
     # Remove by error pattern command
     remove_error_parser = subparsers.add_parser(
         "remove-by-error",
-        help="Remove or flag results for a language where errors match a regex pattern"
+        help="Remove or flag results where errors match a regex pattern"
     )
     remove_error_parser.add_argument("db", help="Database file path")
-    remove_error_parser.add_argument("language", help="Language to filter")
+    remove_error_parser.add_argument("language", help="Language to filter (use 'all' for all languages)")
     remove_error_parser.add_argument("pattern", help="Regex pattern to match in errors")
     remove_error_parser.add_argument("--no-confirm", action="store_true", help="Skip confirmation prompt")
     remove_error_parser.add_argument("--flag", action="store_true", help="Flag entries with retry=True instead of removing them")

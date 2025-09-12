@@ -25,6 +25,9 @@ class WorkItem:
     run: int
     model_info: ModelInfo
     skip_lang_specific: bool
+    is_retry: bool = False  # Whether this is a retry with existing LLM response
+    existing_code: Optional[str] = None  # Existing code from previous attempt
+    existing_response: Optional[str] = None  # Existing LLM response from previous attempt
 
 
 @dataclass
@@ -38,6 +41,7 @@ class ProcessedResult:
     cost: Decimal
     duration: float
     error: Optional[str] = None
+    is_retry: bool = False  # Whether this was a retry with existing LLM response
 
 
 class RateLimiter:
@@ -91,8 +95,8 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
     Runs in separate process for isolation.
     """
     try:
-        # Rate limit LLM calls
-        if rate_limiter:
+        # Rate limit LLM calls (only for non-retry cases)
+        if rate_limiter and not work_item.is_retry:
             rate_limiter.acquire()
         
         start_time = time.time()
@@ -102,7 +106,13 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         
         # Execute the task
         executor = Executor(work_item.language)
-        result = executor.call(work_item.task, work_item.model, work_item.run)
+        if work_item.is_retry:
+            # For retry, pass existing code and response to avoid new LLM call
+            logging.info(f"Retrying {work_item.task.filename} with existing LLM response")
+            result = executor.call(work_item.task, work_item.model, work_item.run, 
+                                 work_item.existing_code, work_item.existing_response)
+        else:
+            result = executor.call(work_item.task, work_item.model, work_item.run)
         
         duration = time.time() - start_time
         
@@ -263,6 +273,7 @@ Can you please update the code so it works?"""
         }
         
         logging.info(f"Completed {work_item.task.filename}: {'SUCCESS' if result.result.success else 'FAILURE'} in {duration:.2f}s")
+        print(result.errors)
         
         return ProcessedResult(
             success=True,
@@ -271,7 +282,8 @@ Can you please update the code so it works?"""
             task_name=work_item.task.filename,
             result_data=result_data,
             cost=cost,
-            duration=duration
+            duration=duration,
+            is_retry=work_item.is_retry
         )
         
     except Exception as e:
@@ -362,8 +374,29 @@ def create_work_items(
                 if limit and task.filename != limit:
                     continue
                 
-                # Skip if already processed (check both run=1 and run=2)
+                # Check for retry or skip if already processed
                 if existing_results:
+                    # Check if there's a result that needs retry (run=1)
+                    retry_result = existing_results.get_result_for_retry(1, task.filename, model, language.value)
+                    if retry_result:
+                        # Create a retry work item with existing code and response
+                        logging.info(f"Found retry entry for {task.filename} for {model}/{language.value}")
+                        work_items.append(WorkItem(
+                            model=model,
+                            language=language,
+                            task=task,
+                            run=1,
+                            model_info=model_info,
+                            skip_lang_specific=skip_lang_specific,
+                            is_retry=True,
+                            existing_code=retry_result.code,
+                            existing_response=retry_result.response
+                        ))
+                        if hasattr(task, "input_contents"):
+                            logging.debug(f"data {task.input_contents}")
+                        continue
+                    
+                    # Otherwise check if already processed
                     has_run1 = existing_results.has_result(1, task.filename, model, language.value)
                     has_run2 = existing_results.has_result(2, task.filename, model, language.value)
                     
@@ -372,6 +405,7 @@ def create_work_items(
                         logging.info(f"Skipping {task.filename} for {model}/{language.value} - already exists (run=1{' and run=2' if has_run2 else ''})")
                         continue
                 
+                # Normal work item
                 work_items.append(WorkItem(
                     model=model,
                     language=language,
@@ -469,24 +503,39 @@ def parallel_execute(
                     )
                     
                     # Add to database (both successful and failed executions)
-                    db.add_result(
-                        result=task_result,
-                        model=result.model,
-                        task_name=result.task_name,
-                        prompt=result.result_data.get('prompt', ''),
-                        code=result.result_data.get('code', ''),
-                        run=result.result_data['run'],
-                        task_type=result.result_data['task_type'],
-                        response=result.result_data.get('response', ''),
-                        output=result.result_data.get('output', ''),
-                        expected_output=result.result_data.get('expected_output', ''),
-                        language=Language(result.language),
-                        errors=result.result_data['errors'],
-                        cost=result.cost,
-                        duration=result.duration,
-                        is_lang_specific=result.result_data.get('is_lang_specific', False),
-                        mutated_code=result.result_data.get('mutated_code', ''),
-                    )
+                    if result.is_retry:
+                        # For retry, update existing result
+                        db.update_result_after_retry(
+                            run=result.result_data['run'],
+                            task_name=result.task_name,
+                            model=result.model,
+                            language=result.language,
+                            new_result=task_result,
+                            new_output=result.result_data.get('output', ''),
+                            new_errors=result.result_data['errors'],
+                            duration=result.duration,
+                            expected_output=result.result_data.get('expected_output', '')
+                        )
+                    else:
+                        # Normal case - add new result
+                        db.add_result(
+                            result=task_result,
+                            model=result.model,
+                            task_name=result.task_name,
+                            prompt=result.result_data.get('prompt', ''),
+                            code=result.result_data.get('code', ''),
+                            run=result.result_data['run'],
+                            task_type=result.result_data['task_type'],
+                            response=result.result_data.get('response', ''),
+                            output=result.result_data.get('output', ''),
+                            expected_output=result.result_data.get('expected_output', ''),
+                            language=Language(result.language),
+                            errors=result.result_data['errors'],
+                            cost=result.cost,
+                            duration=result.duration,
+                            is_lang_specific=result.result_data.get('is_lang_specific', False),
+                            mutated_code=result.result_data.get('mutated_code', ''),
+                        )
                     
                     # Accumulate costs
                     key = (result.model, result.language)
@@ -536,24 +585,39 @@ def parallel_execute(
                     )
                     
                     # Add to database (both successful and failed executions)
-                    db.add_result(
-                        result=task_result,
-                        model=result.model,
-                        task_name=result.task_name,
-                        prompt=result.result_data.get('prompt', ''),
-                        code=result.result_data.get('code', ''),
-                        run=result.result_data['run'],
-                        task_type=result.result_data['task_type'],
-                        response=result.result_data.get('response', ''),
-                        output=result.result_data.get('output', ''),
-                        expected_output=result.result_data.get('expected_output', ''),
-                        language=Language(result.language),
-                        errors=result.result_data['errors'],
-                        cost=result.cost,
-                        duration=result.duration,
-                        is_lang_specific=result.result_data.get('is_lang_specific', False),
-                        mutated_code=result.result_data.get('mutated_code', ''),
-                    )
+                    if result.is_retry:
+                        # For retry, update existing result
+                        db.update_result_after_retry(
+                            run=result.result_data['run'],
+                            task_name=result.task_name,
+                            model=result.model,
+                            language=result.language,
+                            new_result=task_result,
+                            new_output=result.result_data.get('output', ''),
+                            new_errors=result.result_data['errors'],
+                            duration=result.duration,
+                            expected_output=result.result_data.get('expected_output', '')
+                        )
+                    else:
+                        # Normal case - add new result
+                        db.add_result(
+                            result=task_result,
+                            model=result.model,
+                            task_name=result.task_name,
+                            prompt=result.result_data.get('prompt', ''),
+                            code=result.result_data.get('code', ''),
+                            run=result.result_data['run'],
+                            task_type=result.result_data['task_type'],
+                            response=result.result_data.get('response', ''),
+                            output=result.result_data.get('output', ''),
+                            expected_output=result.result_data.get('expected_output', ''),
+                            language=Language(result.language),
+                            errors=result.result_data['errors'],
+                            cost=result.cost,
+                            duration=result.duration,
+                            is_lang_specific=result.result_data.get('is_lang_specific', False),
+                            mutated_code=result.result_data.get('mutated_code', ''),
+                        )
                 
                 # Accumulate costs
                 key = (result.model, result.language)

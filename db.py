@@ -233,7 +233,8 @@ class ResultDB:
         return None
     
     def update_result_after_retry(self, run: int, task_name: str, model: str, language: str,
-                                 new_result, new_output: str, new_errors: List[str], duration: float) -> None:
+                                 new_result, new_output: str, new_errors: List[str], duration: float, 
+                                 expected_output: str = None) -> None:
         """
         Update an existing result after retry execution.
         
@@ -246,6 +247,7 @@ class ResultDB:
             new_output: The new output from execution
             new_errors: Any new errors from execution
             duration: The duration of the retry execution
+            expected_output: The expected output (optional, updates if provided)
         """
         for i, result in enumerate(self.results):
             if (result.run == run 
@@ -258,6 +260,9 @@ class ResultDB:
                 result.errors = new_result.errors + new_errors
                 result.output = new_output
                 result.duration = duration
+                # Update expected_output if provided (for when task definition changed)
+                if expected_output is not None:
+                    result.expected_output = expected_output
                 break
         self.save_db()
 

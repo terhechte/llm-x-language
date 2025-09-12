@@ -64,7 +64,8 @@ def execute_all_tasks(
                 new_result=result.result,
                 new_output=result.output,
                 new_errors=result.errors,
-                duration=duration
+                duration=duration,
+                expected_output=str(result.expected_output)
             )
             continue
 

@@ -87,11 +87,12 @@ class SwiftUtils(BaseLanguageUtils):
             return Result(success=False, errors=[str(e)])
 
     def get_run_command(self) -> List[str]:
-        """Get command to build and run Swift code in one container."""
-        # Avoid --skip-build because our Docker flow creates a fresh container
-        # for the run step; ensure we build before running to avoid the
-        # prebuilt "temp" binary from the image.
-        return ["swift", "run"]
+        """Get command to run the Swift executable explicitly.
+
+        Specify the executable target to avoid SwiftPM ambiguity and ensure
+        we run our package target rather than a placeholder built during image build.
+        """
+        return ["swift", "run", "swift_container"]
     
     def get_validation_command(self) -> Optional[List[str]]:
         """Get command to validate Swift code."""
@@ -111,9 +112,13 @@ class SwiftUtils(BaseLanguageUtils):
         return errors if errors else ["Build failed"]
 
     def extract_runtime_errors(self, stdout: str, stderr: str) -> List[str]:
-        """Extract Swift-specific runtime errors."""
-        if stderr and "error:" in stderr:
+        """Extract Swift-specific runtime errors with better diagnostics."""
+        # Prefer stderr; Swift fatal errors often print here
+        if stderr:
             return [stderr]
+        # If no stderr, include stdout so we don't lose build/run diagnostics
+        if stdout:
+            return [stdout]
         return ["Runtime error occurred"]
 
     def prepare_codebase_for_call(self, code: str, input_contents: str) -> str:

@@ -372,6 +372,106 @@ class DBTool:
         print(f"\nSuccessfully flagged {len(to_flag)} entries for retry and removed {len(to_remove)} higher runs.")
         
         return len(to_flag), len(to_remove)
+
+    def retry_language(self, language: str, model: Optional[str] = None, confirm: bool = True) -> tuple[int, int]:
+        """Set retry flag for all run=1 entries for a language and remove higher runs.
+
+        For each model/language/task_name combination with multiple runs:
+        - Keep the lowest run (typically run 1) and set retry=True
+        - Remove all higher runs (run 2, run 3, etc.)
+
+        Args:
+            language: Language to filter (python, rust, typescript, java, etc.)
+            model: Optional model name to scope the operation
+            confirm: Whether to ask for confirmation
+
+        Returns:
+            Tuple of (number flagged for retry, number removed)
+        """
+        from collections import defaultdict
+
+        lang_norm = language.lower()
+
+        # Filter results for the language (and model if provided)
+        filtered_results = [
+            r for r in self.db.results
+            if r.language.lower() == lang_norm and (model is None or r.model == model)
+        ]
+
+        if not filtered_results:
+            if model:
+                print(f"No results found for language '{language}' with model '{model}'")
+            else:
+                print(f"No results found for language '{language}'")
+            return 0, 0
+
+        # Group by (model, language, task_name)
+        grouped = defaultdict(list)
+        for result in filtered_results:
+            key = (result.model, result.language, Path(result.task_name).name)
+            grouped[key].append(result)
+
+        # Identify what to flag and what to remove
+        to_flag: list[TestResult] = []
+        to_remove: list[TestResult] = []
+
+        for key, results in grouped.items():
+            # Sort by run number
+            results.sort(key=lambda r: r.run)
+
+            # Keep the lowest run, remove the rest
+            lowest = results[0]
+            to_flag.append(lowest)
+            to_remove.extend(results[1:])
+
+        # Show statistics
+        print(f"\n=== Retry Language: {language} ===")
+        if model:
+            print(f"Model scope: {model}")
+        print(f"Unique model/language/task combinations: {len(grouped)}")
+        print(f"Entries to flag for retry: {len(to_flag)}")
+        print(f"Entries to remove (higher runs): {len(to_remove)}")
+
+        if len(to_flag) == 0 and len(to_remove) == 0:
+            print("No changes needed.")
+            return 0, 0
+
+        # Show examples
+        if to_flag:
+            print(f"\nExample entries to flag (showing first 3):")
+            for i, result in enumerate(to_flag[:3]):
+                print(f"  [{i+1}] {result.model} / {result.language} / {Path(result.task_name).name} / run {result.run}")
+            if len(to_flag) > 3:
+                print(f"  ... and {len(to_flag) - 3} more")
+
+        if to_remove:
+            print(f"\nExample entries to remove (showing first 3):")
+            for i, result in enumerate(to_remove[:3]):
+                print(f"  [{i+1}] {result.model} / {result.language} / {Path(result.task_name).name} / run {result.run}")
+            if len(to_remove) > 3:
+                print(f"  ... and {len(to_remove) - 3} more")
+
+        # Confirm action
+        if confirm:
+            print(f"\nWARNING: This will:")
+            print(f"  - Flag {len(to_flag)} entries for retry")
+            print(f"  - Remove {len(to_remove)} entries (higher runs)")
+            response = input("Do you want to proceed? (y/N): ").strip().lower()
+            if response != 'y':
+                print("Operation cancelled.")
+                return 0, 0
+
+        # Apply changes
+        for result in to_flag:
+            result.retry = True
+
+        self.db.results = [r for r in self.db.results if r not in to_remove]
+
+        # Save changes
+        self.db.save_db()
+        print(f"\nSuccessfully flagged {len(to_flag)} entries for retry and removed {len(to_remove)} higher runs.")
+
+        return len(to_flag), len(to_remove)
     
     def stats(self):
         """Print statistics about the database."""
@@ -466,12 +566,12 @@ class DBTool:
 
 
 def merge_databases(
-    input_files: List[str], 
-    output_file: str, 
+    input_files: List[str],
+    output_file: str,
     priority: str = "first"
 ) -> None:
     """Merge multiple databases into a new database.
-    
+
     Args:
         input_files: List of database file paths to merge
         output_file: Path for the merged output database
@@ -479,30 +579,30 @@ def merge_databases(
     """
     if not input_files:
         raise ValueError("No input files provided")
-    
+
     # Create output database
     merged_db = ResultDB(output_file)
     merged_db.results = []  # Start with empty results
     merged_db.costs = {}
     merged_db.durations = {}
-    
+
     seen_results = set()
-    
+
     # Process files based on priority
     files_to_process = input_files if priority == "first" else reversed(input_files)
-    
+
     for file_path in files_to_process:
         print(f"Processing: {file_path}")
         source_db = ResultDB(file_path)
-        
+
         for result in source_db.results:
             # Create unique key for result
             result_key = (result.run, result.task_name, result.model, result.language)
-            
+
             if result_key not in seen_results:
                 merged_db.results.append(result)
                 seen_results.add(result_key)
-        
+
         # Merge costs (take max or sum based on use case)
         for model, costs in source_db.costs.items():
             if model not in merged_db.costs:
@@ -512,7 +612,7 @@ def merge_databases(
                     merged_db.costs[model][lang] = cost
                 elif priority == "last":
                     merged_db.costs[model][lang] = cost
-        
+
         # Merge durations
         for model, durations in source_db.durations.items():
             if model not in merged_db.durations:
@@ -522,10 +622,167 @@ def merge_databases(
                     merged_db.durations[model][lang] = duration
                 elif priority == "last":
                     merged_db.durations[model][lang] = duration
-    
+
     merged_db.save_db()
     print(f"\nMerged {len(input_files)} databases into {output_file}")
     print(f"Total results in merged database: {len(merged_db.results)}")
+
+
+def merge_databases_smart(
+    input_files: List[str],
+    output_file: str
+) -> None:
+    """Merge multiple databases with intelligent priority based on test success.
+
+    Guiding principle: successful tests have priority
+    - If a test only exists in one file, take it
+    - If a test exists in both files, take the successful one
+    - If both are successful, take from the first file
+    - Handle run numbers intelligently based on success
+
+    Args:
+        input_files: List of database file paths to merge
+        output_file: Path for the merged output database
+    """
+    from collections import defaultdict
+
+    if not input_files:
+        raise ValueError("No input files provided")
+
+    # Load all databases
+    databases = []
+    for file_path in input_files:
+        print(f"Loading: {file_path}")
+        databases.append(ResultDB(file_path))
+
+    # Group all results by (task_name, model, language)
+    # This groups different runs together
+    result_groups = defaultdict(list)
+
+    for db_idx, db in enumerate(databases):
+        for result in db.results:
+            # Normalize task_name to just the filename for consistency
+            normalized_task = Path(result.task_name).name
+            key = (normalized_task, result.model, result.language)
+            result_groups[key].append((db_idx, result))
+
+    # Process each group and select the best result(s)
+    merged_results = []
+
+    for (task, model, language), entries in result_groups.items():
+        # Separate entries by run number and source
+        runs_by_number = defaultdict(list)
+        for db_idx, result in entries:
+            runs_by_number[result.run].append((db_idx, result))
+
+        # Determine which runs to include
+        selected_runs = {}
+
+        # Process run 1 first (most important)
+        if 1 in runs_by_number:
+            run1_entries = runs_by_number[1]
+
+            # Find if any run 1 is successful
+            successful_run1 = None
+            for db_idx, result in run1_entries:
+                if result.success:
+                    if successful_run1 is None or db_idx < successful_run1[0]:
+                        # Take first successful run 1
+                        successful_run1 = (db_idx, result)
+
+            if successful_run1:
+                selected_runs[1] = successful_run1[1]
+            else:
+                # No successful run 1, take from first file
+                selected_runs[1] = run1_entries[0][1]
+
+        # Handle higher runs
+        run1_successful = 1 in selected_runs and selected_runs[1].success
+
+        for run_num in sorted(runs_by_number.keys()):
+            if run_num == 1:
+                continue  # Already processed
+
+            run_entries = runs_by_number[run_num]
+
+            if run1_successful:
+                # If run 1 is successful, we wouldn't normally have higher runs
+                # Skip higher runs in this case
+                continue
+            else:
+                # Run 1 failed or doesn't exist, consider higher runs
+                # Find best entry for this run number
+                successful_entry = None
+                for db_idx, result in run_entries:
+                    if result.success:
+                        if successful_entry is None or db_idx < successful_entry[0]:
+                            successful_entry = (db_idx, result)
+
+                if successful_entry:
+                    selected_runs[run_num] = successful_entry[1]
+                else:
+                    # Take from first file
+                    selected_runs[run_num] = run_entries[0][1]
+
+        # Special case: only run 2+ exists, no run 1
+        if 1 not in selected_runs and selected_runs:
+            # Find the lowest run number we have
+            min_run = min(selected_runs.keys())
+            if min_run > 1:
+                # Renumber it to run 1
+                result_to_renumber = selected_runs[min_run]
+                # Create a copy with run=1
+                import copy
+                renumbered = copy.deepcopy(result_to_renumber)
+                renumbered.run = 1
+                merged_results.append(renumbered)
+                # Remove the original from selected_runs
+                del selected_runs[min_run]
+
+        # Add all selected runs to merged results
+        for run_num in sorted(selected_runs.keys()):
+            result = selected_runs[run_num]
+            # Ensure task_name is normalized
+            result.task_name = task
+            merged_results.append(result)
+
+    # Create merged database
+    merged_db = ResultDB(output_file)
+    merged_db.results = merged_results
+
+    # Merge costs and durations intelligently
+    merged_db.costs = {}
+    merged_db.durations = {}
+
+    for db in databases:
+        for model, costs in db.costs.items():
+            if model not in merged_db.costs:
+                merged_db.costs[model] = {}
+            for lang, cost in costs.items():
+                # Take the cost from the database that contributed the successful result
+                if lang not in merged_db.costs[model]:
+                    merged_db.costs[model][lang] = cost
+
+        for model, durations in db.durations.items():
+            if model not in merged_db.durations:
+                merged_db.durations[model] = {}
+            for lang, duration in durations.items():
+                if lang not in merged_db.durations[model]:
+                    merged_db.durations[model][lang] = duration
+
+    merged_db.save_db()
+
+    # Print statistics
+    success_count = sum(1 for r in merged_results if r.success)
+    print(f"\nMerged {len(input_files)} databases into {output_file}")
+    print(f"Total results: {len(merged_results)}")
+    print(f"Successful results: {success_count} ({success_count/len(merged_results)*100:.1f}%)" if merged_results else "")
+
+    # Count unique combinations
+    unique_combinations = set()
+    for result in merged_results:
+        unique_combinations.add((result.model, result.language, result.task_name))
+    print(f"Unique model/language/task combinations: {len(unique_combinations)}")
 
 
 def main():
@@ -572,12 +829,20 @@ def main():
     merge_parser = subparsers.add_parser("merge", help="Merge multiple databases")
     merge_parser.add_argument("-o", "--output", required=True, help="Output database file path")
     merge_parser.add_argument(
-        "-p", "--priority", 
-        choices=["first", "last"], 
+        "-p", "--priority",
+        choices=["first", "last"],
         default="first",
         help="Which database takes priority for duplicates (default: first)"
     )
     merge_parser.add_argument("inputs", nargs="+", help="Input database files to merge")
+
+    # Smart merge command
+    merge_smart_parser = subparsers.add_parser(
+        "merge-smart",
+        help="Merge databases with intelligent success-based priority"
+    )
+    merge_smart_parser.add_argument("-o", "--output", required=True, help="Output database file path")
+    merge_smart_parser.add_argument("inputs", nargs="+", help="Input database files to merge")
     
     # List commands
     list_parser = subparsers.add_parser("list", help="List items in database")
@@ -602,6 +867,16 @@ def main():
     retry_task_parser.add_argument("db", help="Database file path")
     retry_task_parser.add_argument("task", help="Task name to retry (e.g., 'simple.json')")
     retry_task_parser.add_argument("--no-confirm", action="store_true", help="Skip confirmation prompt")
+
+    # Retry language command - flag all run=1 results for a language (optionally scoped to a model) and remove higher runs
+    retry_lang_parser = subparsers.add_parser(
+        "retry-language",
+        help="Flag all run=1 entries for a language (optionally for a specific model) for retry and remove higher runs",
+    )
+    retry_lang_parser.add_argument("db", help="Database file path")
+    retry_lang_parser.add_argument("language", help="Language to retry (e.g., 'java')")
+    retry_lang_parser.add_argument("-m", "--model", help="Optional model to scope the retry", default=None)
+    retry_lang_parser.add_argument("--no-confirm", action="store_true", help="Skip confirmation prompt")
     
     args = parser.parse_args()
     
@@ -632,6 +907,9 @@ def main():
     
     elif args.command == "merge":
         merge_databases(args.inputs, args.output, args.priority)
+
+    elif args.command == "merge-smart":
+        merge_databases_smart(args.inputs, args.output)
     
     elif args.command == "list":
         tool = DBTool(args.db)
@@ -667,6 +945,10 @@ def main():
     elif args.command == "retry-task":
         tool = DBTool(args.db)
         tool.retry_task(args.task, confirm=not args.no_confirm)
+
+    elif args.command == "retry-language":
+        tool = DBTool(args.db)
+        tool.retry_language(args.language, model=args.model, confirm=not args.no_confirm)
 
 
 if __name__ == "__main__":

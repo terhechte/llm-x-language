@@ -96,6 +96,16 @@ def parse_arguments():
         help="Show what would be executed without running",
     )
 
+    # Retry behavior options
+    parser.add_argument(
+        "--retry-fail-fast",
+        action="store_true",
+        help=(
+            "If a DB-marked retry fails, do not perform an automatic LLM retry; "
+            "just record the failure and continue"
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -105,22 +115,30 @@ def get_models(specific_model: Optional[str] = None) -> List[str]:
         return [specific_model]
 
     return [
+        #    "openrouter/qwen/qwen3-next-80b-a3b-thinking",
+        #    "openrouter/qwen/qwen3-next-80b-a3b-instruct",
+        #    "openrouter/moonshotai/kimi-k2-0905",
+        #    "openrouter/x-ai/grok-code-fast-1",
+        #"qwen/qwen3-next-80b-a3b-thinking",
         #"openrouter/openai/gpt-oss-20b",
         #"openrouter/z-ai/glm-4-32b",
         #"openrouter/mistralai/devstral-medium",
-        # "openrouter/google/gemini-2.5-pro",
+        #"openrouter/google/gemini-2.5-pro",
         #"openrouter/qwen/qwen3-30b-a3b-instruct-2507",
         #"openrouter/z-ai/glm-4.5",
-        "openrouter/z-ai/glm-4.5-air",
+        #"openrouter/z-ai/glm-4.5-air",
         #"openrouter/qwen/qwen3-235b-a22b-thinking-2507",
         #"openrouter/qwen/qwen3-235b-a22b-2507",
         #"openrouter/moonshotai/kimi-k2",
-        #"openrouter/anthropic/claude-sonnet-4",
+        "openrouter/anthropic/claude-opus-4.1",
+        "openrouter/anthropic/claude-haiku-4.5",
+        "openrouter/openai/gpt-5-codex",
+        #"openrouter/anthropic/claude-sonnet-4.5",
         #"openrouter/mistralai/codestral-2508",
         #"openrouter/qwen/qwen3-coder",
         #"openrouter/google/gemini-2.5-flash-lite",
-        "openrouter/openai/gpt-5",
-        "openrouter/x-ai/grok-4"
+        #"openrouter/openai/gpt-5",
+        #"openrouter/x-ai/grok-4"
         #"openrouter/openai/gpt-oss-120b",
     ]
 
@@ -197,19 +215,19 @@ def get_languages(specific_language: Optional[str] = None) -> List[Language]:
         return [Language(specific_language)]
 
     return [
-        Language.SWIFT,
+        #Language.SWIFT,
         Language.RUST,
-        Language.TYPESCRIPT,
-        Language.PYTHON,
-        Language.PHP,
-        Language.GO,
-        Language.LUA,
-        Language.KOTLIN,
-        Language.CSHARP,
-        Language.CPP,
-        Language.JAVA,
-        Language.ZIG,
-        Language.SCALA,
+        #Language.TYPESCRIPT,
+        #Language.PYTHON,
+        #Language.PHP,
+        #Language.GO,
+        #Language.LUA,
+        #Language.KOTLIN,
+        #Language.CSHARP,
+        #Language.CPP,
+        #Language.JAVA,
+        #Language.ZIG,
+        #Language.SCALA,
     ]
 
 
@@ -262,7 +280,7 @@ def main():
 
         model_infos = model_info(models)
         work_items = create_work_items(
-            models, languages, model_infos, skip_lang_specific, args.task_number, db
+            models, languages, model_infos, skip_lang_specific, args.task_number, db, args.retry_fail_fast
         )
 
         print(f"\nDry run - would process {len(work_items)} tasks:")
@@ -294,6 +312,7 @@ def main():
             limit=args.task_number,
             worker_processes=args.workers,
             llm_rate_limit=args.rate_limit,
+            retry_fail_fast=args.retry_fail_fast,
         )
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Saving progress...")

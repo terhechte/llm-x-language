@@ -28,6 +28,7 @@ class WorkItem:
     is_retry: bool = False  # Whether this is a retry with existing LLM response
     existing_code: Optional[str] = None  # Existing code from previous attempt
     existing_response: Optional[str] = None  # Existing LLM response from previous attempt
+    retry_fail_fast: bool = False  # If True, disable automatic LLM retry when DB retry fails
 
 
 @dataclass
@@ -124,7 +125,11 @@ def process_single_task(work_item: WorkItem) -> ProcessedResult:
         cost = pricing * prompt_tokens + completion * completion_tokens
         
         # Check if we should retry on failure
-        if not result.result.success and work_item.run == 1:
+        should_consider_auto_retry = (
+            not result.result.success and work_item.run == 1
+        )
+        # If this was a DB-marked retry and fail-fast is enabled, do NOT auto-retry
+        if should_consider_auto_retry and not (work_item.is_retry and work_item.retry_fail_fast):
             # Only retry for openrouter and lmstudio models
             if is_openrouter_model(work_item.model) or is_lmstudio_model(work_item.model):
                 logging.info(f"Task failed, attempting retry for {work_item.task.filename}")
@@ -359,7 +364,8 @@ def create_work_items(
     model_infos: Dict[str, ModelInfo],
     skip_lang_specific: bool,
     limit: Optional[str] = None,
-    existing_results: Optional[Any] = None
+    existing_results: Optional[Any] = None,
+    retry_fail_fast: bool = False,
 ) -> List[WorkItem]:
     """Create all work items, filtering out already completed tasks."""
     work_items = []
@@ -390,7 +396,8 @@ def create_work_items(
                             skip_lang_specific=skip_lang_specific,
                             is_retry=True,
                             existing_code=retry_result.code,
-                            existing_response=retry_result.response
+                            existing_response=retry_result.response,
+                            retry_fail_fast=retry_fail_fast,
                         ))
                         if hasattr(task, "input_contents"):
                             logging.debug(f"data {task.input_contents}")
@@ -412,7 +419,8 @@ def create_work_items(
                     task=task,
                     run=1,  # For now, only support single run
                     model_info=model_info,
-                    skip_lang_specific=skip_lang_specific
+                    skip_lang_specific=skip_lang_specific,
+                    retry_fail_fast=retry_fail_fast,
                 ))
     
     return work_items
@@ -426,7 +434,8 @@ def parallel_execute(
     limit: Optional[str] = None,
     worker_processes: int = 8,
     batch_size: int = 1,
-    llm_rate_limit: int = 30
+    llm_rate_limit: int = 30,
+    retry_fail_fast: bool = False,
 ) -> None:
     """
     Execute benchmark tasks in parallel using multiprocessing.Pool.
@@ -447,7 +456,7 @@ def parallel_execute(
     # Create work items
     print("Preparing work items...")
     work_items = create_work_items(
-        models, languages, model_infos, skip_lang_specific, limit, db
+        models, languages, model_infos, skip_lang_specific, limit, db, retry_fail_fast
     )
     
     if not work_items:
